@@ -10,8 +10,8 @@ data/
 downloads/
 logs/
 diagnostics/
-user_data/
-chrome-profile/
+user_data*/
+chrome-profile*/
 
 # Environment files
 .env

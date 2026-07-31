@@ -8,9 +8,25 @@ import { FileUtils } from '../utils/FileUtils';
 export class PersistentStrategy {
   private context: BrowserContext | null = null;
 
+  private cleanupStaleLocks(userDataDir: string): void {
+    const lockFiles = ['lockfile', 'SingletonLock', 'SingletonCookie', 'SingletonSocket'];
+    for (const file of lockFiles) {
+      const lockPath = path.join(userDataDir, file);
+      if (fs.existsSync(lockPath)) {
+        try {
+          fs.unlinkSync(lockPath);
+          logger.info(`Cleaned up profile lock file: ${file}`);
+        } catch (err) {
+          // Ignore if locked by active process
+        }
+      }
+    }
+  }
+
   public async launch(config: AppConfig): Promise<{ context: BrowserContext; page: Page }> {
-    const userDataDir = path.resolve(config.userDataDir);
+    let userDataDir = path.resolve(config.userDataDir);
     FileUtils.ensureDirectory(userDataDir);
+    this.cleanupStaleLocks(userDataDir);
 
     const executablePath = fs.existsSync(config.chromeExecutablePath)
       ? config.chromeExecutablePath
@@ -25,18 +41,43 @@ export class PersistentStrategy {
     logger.info(`Launching persistent context with user-data-dir: ${userDataDir}`);
     logger.info(`Headless mode: ${config.headless}`);
 
-    this.context = await chromium.launchPersistentContext(userDataDir, {
-      executablePath,
-      headless: config.headless,
-      ignoreDefaultArgs: ['--enable-automation'],
-      args: [
-        '--disable-blink-features=AutomationControlled',
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--window-size=1280,800',
-      ],
-      viewport: { width: 1280, height: 800 },
-    });
+    try {
+      this.context = await chromium.launchPersistentContext(userDataDir, {
+        executablePath,
+        headless: config.headless,
+        ignoreDefaultArgs: ['--enable-automation'],
+        args: [
+          '--disable-blink-features=AutomationControlled',
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--window-size=1280,800',
+        ],
+        viewport: { width: 1280, height: 800 },
+      });
+    } catch (err) {
+      const msg = (err as Error).message;
+      if (msg.includes('ProcessSingleton') || msg.includes('Lock file can not be created')) {
+        logger.warn('Detected active Chrome process locking profile directory. Creating secondary profile session directory...');
+        userDataDir = path.resolve(`${config.userDataDir}_session`);
+        FileUtils.ensureDirectory(userDataDir);
+        this.cleanupStaleLocks(userDataDir);
+
+        this.context = await chromium.launchPersistentContext(userDataDir, {
+          executablePath,
+          headless: config.headless,
+          ignoreDefaultArgs: ['--enable-automation'],
+          args: [
+            '--disable-blink-features=AutomationControlled',
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--window-size=1280,800',
+          ],
+          viewport: { width: 1280, height: 800 },
+        });
+      } else {
+        throw err;
+      }
+    }
 
     const pages = this.context.pages();
     const page = pages.length > 0 ? pages[0] : await this.context.newPage();

@@ -22,7 +22,7 @@ export class CLIHandler {
       .version('1.0.0');
 
     this.program
-      .command('start')
+      .command('start', { isDefault: true })
       .description('Start the automated detection and downloader loop')
       .option('-s, --strategy <strategy>', 'Browser strategy (auto, persistent, cdp)')
       .option('-h, --headless <boolean>', 'Run browser in headless mode')
