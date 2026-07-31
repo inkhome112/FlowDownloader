@@ -1,12 +1,12 @@
 {
-  "downloadFolder": "./downloads",
+  "downloadFolder": "D:\\FlowDownloader\\downloads",
   "pollIntervalMs": 30000,
   "retryCount": 3,
   "headless": false,
   "browserStrategy": "auto",
   "cdpPort": 9222,
   "chromeExecutablePath": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
-  "userDataDir": "./user_data",
+  "userDataDir": "D:\\FlowDownloader\\user_data",
   "flowUrl": "https://labs.google/flow",
   "autoScrollOnPoll": true
 }
