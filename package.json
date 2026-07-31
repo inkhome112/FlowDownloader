@@ -1,0 +1,42 @@
+{
+  "name": "flowdownloader",
+  "version": "1.0.0",
+  "description": "Production-quality Windows application to automatically download completed Google Flow videos.",
+  "main": "dist/index.js",
+  "bin": {
+    "flowdownloader": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "tsx --test tests/unit.test.ts",
+    "start": "tsx src/index.ts start",
+    "cli": "tsx src/index.ts",
+    "launch-chrome": "tsx src/index.ts launch-chrome",
+    "status": "tsx src/index.ts status",
+    "pack:win": "tsc && pkg . --targets node18-win-x64 --out-path dist-bin"
+  },
+  "keywords": [
+    "google-flow",
+    "video-downloader",
+    "playwright",
+    "sqlite",
+    "automation"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "better-sqlite3": "^13.0.2",
+    "commander": "^14.0.0",
+    "dotenv": "^17.0.0",
+    "playwright": "^1.50.0",
+    "winston": "^3.17.0",
+    "winston-daily-rotate-file": "^5.0.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/node": "^22.13.0",
+    "pkg": "^5.8.1",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3"
+  }
+}
