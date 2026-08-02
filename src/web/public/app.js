@@ -9,11 +9,62 @@ document.addEventListener('DOMContentLoaded', () => {
   const statusFilter = document.getElementById('status-filter');
   const triggerSyncBtn = document.getElementById('trigger-sync-btn');
 
+  const dateFilterMode = document.getElementById('date-filter-mode');
+  const specificDateInput = document.getElementById('specific-date-input');
+  const applyDateFilterBtn = document.getElementById('apply-date-filter-btn');
+
   const modal = document.getElementById('video-modal');
   const modalCloseBtn = document.getElementById('modal-close-btn');
   const modalPlayer = document.getElementById('modal-video-player');
   const modalTitle = document.getElementById('modal-title');
-  const modalMeta = document.getElementById('modal-meta');
+
+  async function fetchConfig() {
+    try {
+      const res = await fetch('/api/config');
+      const config = await res.json();
+      if (config.dateFilterMode) {
+        dateFilterMode.value = config.dateFilterMode;
+      }
+      if (config.specificDate) {
+        specificDateInput.value = config.specificDate;
+      }
+      toggleSpecificDateVisibility();
+    } catch (err) {
+      console.error('Failed to fetch config:', err);
+    }
+  }
+
+  function toggleSpecificDateVisibility() {
+    if (dateFilterMode.value === 'SPECIFIC') {
+      specificDateInput.classList.remove('hidden');
+    } else {
+      specificDateInput.classList.add('hidden');
+    }
+  }
+
+  dateFilterMode.addEventListener('change', toggleSpecificDateVisibility);
+
+  applyDateFilterBtn.addEventListener('click', async () => {
+    try {
+      applyDateFilterBtn.disabled = true;
+      applyDateFilterBtn.textContent = 'Saving...';
+      const payload = {
+        dateFilterMode: dateFilterMode.value,
+        specificDate: specificDateInput.value || '',
+      };
+      await fetch('/api/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      alert(`Date filter updated to ${dateFilterMode.value} ${specificDateInput.value ? '(' + specificDateInput.value + ')' : ''}`);
+    } catch (err) {
+      alert('Failed to update date filter setting.');
+    } finally {
+      applyDateFilterBtn.disabled = false;
+      applyDateFilterBtn.textContent = 'Apply Filter';
+    }
+  });
 
   async function fetchStats() {
     try {
@@ -110,6 +161,7 @@ document.addEventListener('DOMContentLoaded', () => {
   statusFilter.addEventListener('change', fetchVideos);
 
   // Initial load & periodic refresh
+  fetchConfig();
   fetchStats();
   fetchVideos();
   setInterval(() => {

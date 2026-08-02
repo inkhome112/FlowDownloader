@@ -17,9 +17,10 @@ describe('FileUtils & TemplateEngine Tests', () => {
     assert.strictEqual(sanitized.includes('<'), false);
   });
 
-  test('TemplateEngine should replace placeholders correctly', () => {
+  test('TemplateEngine should replace placeholders correctly and include date subfolder', () => {
     const template = '{date}/{prompt_slug}_{id}.{ext}';
     const baseDir = path.resolve(process.cwd(), 'downloads');
+    const todayStr = new Date().toISOString().slice(0, 10);
     const { filename, fullPath } = TemplateEngine.formatPath(
       template,
       baseDir,
@@ -29,17 +30,20 @@ describe('FileUtils & TemplateEngine Tests', () => {
     );
 
     assert.strictEqual(filename, 'a_cybernetic_cat_running_id12345.mp4');
+    assert.strictEqual(fullPath.includes(todayStr), true);
     assert.strictEqual(fullPath.includes('a_cybernetic_cat_running_id12345.mp4'), true);
   });
 });
 
 describe('ConfigManager Tests', () => {
-  test('ConfigManager should return valid upgraded default config', () => {
+  test('ConfigManager should return valid upgraded default config with date filtering and auto browser launch', () => {
     const config = ConfigManager.getInstance().getConfig();
     assert.strictEqual(typeof config.downloadFolder, 'string');
     assert.strictEqual(config.enableWebDashboard, true);
     assert.strictEqual(config.webPort, 3000);
     assert.strictEqual(typeof config.fileTemplate, 'string');
+    assert.strictEqual(config.autoOpenWebBrowser, true);
+    assert.strictEqual(config.dateFilterMode, 'TODAY');
   });
 });
 

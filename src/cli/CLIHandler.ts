@@ -1,4 +1,5 @@
 import { Command } from 'commander';
+import { exec } from 'child_process';
 import { ConfigManager } from '../config/ConfigManager';
 import { DatabaseManager } from '../storage/Database';
 import { BrowserFactory } from '../browser/BrowserFactory';
@@ -29,6 +30,8 @@ export class CLIHandler {
       .option('-h, --headless <boolean>', 'Run browser in headless mode')
       .option('-i, --interval <ms>', 'Polling interval in milliseconds')
       .option('-p, --port <number>', 'Web GUI Dashboard HTTP port')
+      .option('-d, --date-filter <mode>', 'Date filter mode: TODAY, ALL, SPECIFIC')
+      .option('-f, --specific-date <date>', 'Specific date for filtering (YYYY-MM-DD)')
       .action(async (options) => {
         const configManager = ConfigManager.getInstance();
         const overrides: any = {};
@@ -36,6 +39,8 @@ export class CLIHandler {
         if (options.headless !== undefined) overrides.headless = options.headless === 'true';
         if (options.interval) overrides.pollIntervalMs = parseInt(options.interval, 10);
         if (options.port) overrides.webPort = parseInt(options.port, 10);
+        if (options.dateFilter) overrides.dateFilterMode = options.dateFilter.toUpperCase();
+        if (options.specificDate) overrides.specificDate = options.specificDate;
 
         const config = configManager.updateConfig(overrides);
         await this.runStartLoop(config);
@@ -86,6 +91,7 @@ export class CLIHandler {
     logger.info(`Target Flow URL: ${config.flowUrl}`);
     logger.info(`Download Folder: ${config.downloadFolder}`);
     logger.info(`Poll Interval  : ${config.pollIntervalMs} ms`);
+    logger.info(`Date Filter    : ${config.dateFilterMode || 'TODAY'} ${config.specificDate ? '(' + config.specificDate + ')' : ''}`);
 
     let browserSession;
     try {
@@ -102,8 +108,9 @@ export class CLIHandler {
     const downloader = new VideoDownloader(config);
 
     const runCycle = async () => {
+      const activeConfig = ConfigManager.getInstance().getConfig();
       logger.info('--- Polling Cycle Started ---');
-      const items = await FlowDetector.detectItems(page, config.autoScrollOnPoll, config.flowUrl);
+      const items = await FlowDetector.detectItems(page, activeConfig.autoScrollOnPoll, activeConfig.flowUrl);
       const result = await downloader.processItems(page, items);
       logger.info(
         `Cycle finished. Downloaded: ${result.downloaded}, Skipped: ${result.skipped}, Failed: ${result.failed}`
@@ -115,6 +122,15 @@ export class CLIHandler {
       const port = config.webPort || 3000;
       webServer = new WebServer(port, runCycle);
       await webServer.start();
+      if (config.autoOpenWebBrowser !== false) {
+        const url = `http://localhost:${port}`;
+        logger.info(`Opening Web GUI Dashboard in default browser: ${url}`);
+        try {
+          exec(`start ${url}`);
+        } catch (err) {
+          // Ignore browser open errors
+        }
+      }
     }
 
     const handleExit = async () => {
@@ -143,8 +159,10 @@ export class CLIHandler {
         logger.error(`Error during polling cycle: ${(err as Error).message}`);
       }
 
-      logger.info(`Waiting ${config.pollIntervalMs / 1000} seconds until next polling cycle...`);
-      await new Promise((res) => setTimeout(res, config.pollIntervalMs));
+      const activeConfig = ConfigManager.getInstance().getConfig();
+      const interval = activeConfig.pollIntervalMs || 15000;
+      logger.info(`Waiting ${interval / 1000} seconds until next polling cycle...`);
+      await new Promise((res) => setTimeout(res, interval));
     }
   }
 

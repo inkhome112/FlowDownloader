@@ -1,27 +1,28 @@
-export type BrowserStrategyType = 'auto' | 'persistent' | 'cdp';
-
 export interface AppConfig {
+  flowUrl: string;
   downloadFolder: string;
   pollIntervalMs: number;
-  retryCount: number;
-  headless: boolean;
-  browserStrategy: BrowserStrategyType;
-  cdpPort: number;
+  browserStrategy: 'auto' | 'persistent' | 'cdp';
   chromeExecutablePath: string;
+  cdpPort: number;
   userDataDir: string;
-  flowUrl: string;
-  autoScrollOnPoll?: boolean;
+  headless: boolean;
+  maxRetries: number;
+  autoScrollOnPoll: boolean;
   enableWebDashboard?: boolean;
   webPort?: number;
   enableDesktopNotifications?: boolean;
   fileTemplate?: string;
   generateThumbnails?: boolean;
+  autoOpenWebBrowser?: boolean;
+  dateFilterMode?: 'TODAY' | 'ALL' | 'SPECIFIC';
+  specificDate?: string;
 }
 
 export interface VideoRecord {
   id: string;
   prompt: string;
-  download_status: 'PENDING' | 'COMPLETED' | 'FAILED' | 'SKIPPED';
+  download_status: 'PENDING' | 'COMPLETED' | 'FAILED';
   download_date?: string;
   filename?: string;
   filepath?: string;
@@ -34,11 +35,10 @@ export interface VideoRecord {
   updated_at: string;
 }
 
-export interface FlowItem {
+export interface DetectedVideoItem {
   id: string;
   prompt: string;
   videoUrl?: string;
-  status: 'completed' | 'generating' | 'failed';
-  timestamp?: string;
-  metadata?: Record<string, any>;
+  status: 'READY' | 'PROCESSING' | 'FAILED';
+  dateString?: string;
 }

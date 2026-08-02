@@ -1,83 +1,62 @@
 import fs from 'fs';
 import path from 'path';
 import { AppConfig } from './types';
+import logger from '../logger/Logger';
 
 export class ConfigManager {
   private static instance: ConfigManager;
-  private config: AppConfig;
   private configPath: string;
+  private config!: AppConfig;
 
-  private constructor(customConfigPath?: string) {
-    this.configPath = customConfigPath || path.resolve(process.cwd(), 'config.json');
-    this.config = this.loadConfig();
+  private constructor(configPath?: string) {
+    this.configPath = configPath || path.resolve(process.cwd(), 'config.json');
+    this.loadConfig();
   }
 
-  public static getInstance(customConfigPath?: string): ConfigManager {
+  public static getInstance(configPath?: string): ConfigManager {
     if (!ConfigManager.instance) {
-      ConfigManager.instance = new ConfigManager(customConfigPath);
+      ConfigManager.instance = new ConfigManager(configPath);
     }
     return ConfigManager.instance;
   }
 
   private getDefaultConfig(): AppConfig {
     return {
+      flowUrl: 'https://labs.google/fx/tools/flow',
       downloadFolder: path.resolve(process.cwd(), 'downloads'),
-      pollIntervalMs: 30000,
-      retryCount: 3,
-      headless: false,
+      pollIntervalMs: 15000,
       browserStrategy: 'auto',
-      cdpPort: 9222,
       chromeExecutablePath: 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+      cdpPort: 9222,
       userDataDir: path.resolve(process.cwd(), 'user_data'),
-      flowUrl: 'https://labs.google/flow',
+      headless: false,
+      maxRetries: 3,
       autoScrollOnPoll: true,
       enableWebDashboard: true,
       webPort: 3000,
       enableDesktopNotifications: true,
-      fileTemplate: '{prompt_slug}_{id}.{ext}',
+      fileTemplate: '{date}/{prompt_slug}_{id}.{ext}',
       generateThumbnails: true,
+      autoOpenWebBrowser: true,
+      dateFilterMode: 'TODAY',
+      specificDate: '',
     };
   }
 
-  private loadConfig(): AppConfig {
+  private loadConfig(): void {
     const defaults = this.getDefaultConfig();
-    if (!fs.existsSync(this.configPath)) {
-      this.saveConfig(defaults);
-      return defaults;
-    }
-
     try {
-      const raw = fs.readFileSync(this.configPath, 'utf-8');
-      const parsed = JSON.parse(raw);
-
-      const config: AppConfig = {
-        downloadFolder: parsed.downloadFolder
-          ? path.resolve(process.cwd(), parsed.downloadFolder)
-          : defaults.downloadFolder,
-        pollIntervalMs: typeof parsed.pollIntervalMs === 'number' ? parsed.pollIntervalMs : defaults.pollIntervalMs,
-        retryCount: typeof parsed.retryCount === 'number' ? parsed.retryCount : defaults.retryCount,
-        headless: typeof parsed.headless === 'boolean' ? parsed.headless : defaults.headless,
-        browserStrategy: ['auto', 'persistent', 'cdp'].includes(parsed.browserStrategy)
-          ? parsed.browserStrategy
-          : defaults.browserStrategy,
-        cdpPort: typeof parsed.cdpPort === 'number' ? parsed.cdpPort : defaults.cdpPort,
-        chromeExecutablePath: parsed.chromeExecutablePath || defaults.chromeExecutablePath,
-        userDataDir: parsed.userDataDir
-          ? path.resolve(process.cwd(), parsed.userDataDir)
-          : defaults.userDataDir,
-        flowUrl: parsed.flowUrl || defaults.flowUrl,
-        autoScrollOnPoll: parsed.autoScrollOnPoll !== undefined ? parsed.autoScrollOnPoll : defaults.autoScrollOnPoll,
-        enableWebDashboard: parsed.enableWebDashboard !== undefined ? parsed.enableWebDashboard : defaults.enableWebDashboard,
-        webPort: typeof parsed.webPort === 'number' ? parsed.webPort : defaults.webPort,
-        enableDesktopNotifications: parsed.enableDesktopNotifications !== undefined ? parsed.enableDesktopNotifications : defaults.enableDesktopNotifications,
-        fileTemplate: parsed.fileTemplate || defaults.fileTemplate,
-        generateThumbnails: parsed.generateThumbnails !== undefined ? parsed.generateThumbnails : defaults.generateThumbnails,
-      };
-
-      return config;
+      if (fs.existsSync(this.configPath)) {
+        const raw = fs.readFileSync(this.configPath, 'utf-8');
+        const parsed = JSON.parse(raw);
+        this.config = { ...defaults, ...parsed };
+      } else {
+        this.config = defaults;
+        this.saveConfig();
+      }
     } catch (err) {
-      console.warn(`Failed to parse ${this.configPath}. Falling back to default settings. Error: ${(err as Error).message}`);
-      return defaults;
+      logger.error(`Failed to load config from ${this.configPath}. Using defaults. Error: ${(err as Error).message}`);
+      this.config = defaults;
     }
   }
 
@@ -85,21 +64,22 @@ export class ConfigManager {
     return { ...this.config };
   }
 
-  public updateConfig(newPartialConfig: Partial<AppConfig>): AppConfig {
-    this.config = { ...this.config, ...newPartialConfig };
-    this.saveConfig(this.config);
+  public updateConfig(newConfig: Partial<AppConfig>): AppConfig {
+    this.config = { ...this.config, ...newConfig };
+    this.saveConfig();
     return this.getConfig();
   }
 
-  private saveConfig(config: AppConfig): void {
+  public saveConfig(): void {
     try {
       const dir = path.dirname(this.configPath);
       if (!fs.existsSync(dir)) {
         fs.mkdirSync(dir, { recursive: true });
       }
-      fs.writeFileSync(this.configPath, JSON.stringify(config, null, 2), 'utf-8');
+      fs.writeFileSync(this.configPath, JSON.stringify(this.config, null, 2), 'utf-8');
+      logger.info(`Configuration saved to ${this.configPath}`);
     } catch (err) {
-      console.error(`Failed to write config file to ${this.configPath}: ${(err as Error).message}`);
+      logger.error(`Failed to save config to ${this.configPath}: ${(err as Error).message}`);
     }
   }
 }

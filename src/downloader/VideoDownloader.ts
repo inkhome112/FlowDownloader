@@ -4,6 +4,7 @@ import fs from 'fs';
 import { AppConfig } from '../config/types';
 import { DetectedFlowItem } from '../flow/types';
 import { DatabaseManager } from '../storage/Database';
+import { ConfigManager } from '../config/ConfigManager';
 import { FileUtils } from '../utils/FileUtils';
 import { TemplateEngine } from '../utils/TemplateEngine';
 import { MediaProcessor } from './MediaProcessor';
@@ -25,10 +26,31 @@ export class VideoDownloader {
     let skipped = 0;
     let failed = 0;
 
+    const activeConfig = ConfigManager.getInstance().getConfig();
+    const dateFilterMode = activeConfig.dateFilterMode || 'TODAY';
+    const specificDate = activeConfig.specificDate;
+    const todayStr = new Date().toISOString().slice(0, 10);
+
     for (const item of items) {
       if (item.status !== 'completed' || !item.videoUrl) {
         logger.debug(`Skipping incomplete item ${item.id} (Status: ${item.status})`);
         continue;
+      }
+
+      // Date Filtering Rule
+      const itemDateStr = item.dateString ? item.dateString.slice(0, 10) : todayStr;
+      if (dateFilterMode === 'TODAY') {
+        if (itemDateStr !== todayStr) {
+          logger.info(`Skipping video ${item.id} (Date: ${itemDateStr}, Filter: TODAY)`);
+          skipped++;
+          continue;
+        }
+      } else if (dateFilterMode === 'SPECIFIC' && specificDate) {
+        if (itemDateStr !== specificDate) {
+          logger.info(`Skipping video ${item.id} (Date: ${itemDateStr}, Filter: SPECIFIC ${specificDate})`);
+          skipped++;
+          continue;
+        }
       }
 
       const isDownloaded = this.db.isAlreadyDownloaded(item.id);
@@ -39,8 +61,9 @@ export class VideoDownloader {
       }
 
       const dbRecord = this.db.savePendingVideo(item.id, item.prompt);
-      if (dbRecord.retry_count >= this.config.retryCount) {
-        logger.warn(`Video ${item.id} reached maximum retry limit (${this.config.retryCount}). Skipping.`);
+      const maxRetries = activeConfig.maxRetries || 3;
+      if (dbRecord.retry_count >= maxRetries) {
+        logger.warn(`Video ${item.id} reached maximum retry limit (${maxRetries}). Skipping.`);
         failed++;
         continue;
       }
@@ -50,7 +73,7 @@ export class VideoDownloader {
       let attempts = 0;
       let success = false;
 
-      while (attempts < this.config.retryCount && !success) {
+      while (attempts < maxRetries && !success) {
         attempts++;
         try {
           const result = await this.downloadVideoFile(page, item);
@@ -60,8 +83,8 @@ export class VideoDownloader {
           MediaProcessor.embedMetadata(result.filepath, item.prompt, item.id);
           
           let thumbnailPath: string | undefined = undefined;
-          if (this.config.generateThumbnails) {
-            const thumbDir = path.join(this.config.downloadFolder, 'thumbnails');
+          if (activeConfig.generateThumbnails) {
+            const thumbDir = path.join(activeConfig.downloadFolder, 'thumbnails');
             thumbnailPath = MediaProcessor.generateThumbnail(result.filepath, thumbDir, item.id);
           }
 
@@ -76,7 +99,7 @@ export class VideoDownloader {
           logger.info(`Successfully downloaded ${result.filename} (${(result.filesize / 1024 / 1024).toFixed(2)} MB)`);
 
           // Windows Desktop Notification
-          if (this.config.enableDesktopNotifications) {
+          if (activeConfig.enableDesktopNotifications) {
             Notifier.notify(
               'FlowDownloader - New Video Saved 🎬',
               `Downloaded: "${item.prompt.slice(0, 50)}..."`
@@ -87,10 +110,10 @@ export class VideoDownloader {
           success = true;
         } catch (err) {
           const errorMsg = (err as Error).message;
-          logger.error(`Download attempt ${attempts}/${this.config.retryCount} failed for ${item.id}: ${errorMsg}`);
+          logger.error(`Download attempt ${attempts}/${maxRetries} failed for ${item.id}: ${errorMsg}`);
           this.db.incrementRetry(item.id, errorMsg);
 
-          if (attempts < this.config.retryCount) {
+          if (attempts < maxRetries) {
             await new Promise((res) => setTimeout(res, 3000 * attempts));
           } else {
             this.db.markFailed(item.id, `Failed after ${attempts} attempts: ${errorMsg}`);
@@ -107,10 +130,11 @@ export class VideoDownloader {
     page: Page,
     item: DetectedFlowItem
   ): Promise<{ filename: string; filepath: string; filesize: number }> {
-    const template = this.config.fileTemplate || '{prompt_slug}_{id}.{ext}';
+    const activeConfig = ConfigManager.getInstance().getConfig();
+    const template = activeConfig.fileTemplate || '{date}/{prompt_slug}_{id}.{ext}';
     const { filename, fullPath: targetPath } = TemplateEngine.formatPath(
       template,
-      this.config.downloadFolder,
+      activeConfig.downloadFolder,
       item.id,
       item.prompt,
       'mp4'

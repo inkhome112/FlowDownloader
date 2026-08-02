@@ -4,5 +4,6 @@ export interface DetectedFlowItem {
   videoUrl?: string;
   status: 'completed' | 'generating' | 'failed';
   timestamp?: string;
+  dateString?: string;
   rawElementInfo?: string;
 }

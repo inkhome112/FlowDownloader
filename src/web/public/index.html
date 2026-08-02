@@ -47,7 +47,21 @@
         </div>
       </section>
 
-      <!-- Controls & Filter Toolbar -->
+      <!-- Date Filter Bar -->
+      <section class="date-filter-bar">
+        <div class="filter-group">
+          <label for="date-filter-mode">📅 Download Filter:</label>
+          <select id="date-filter-mode">
+            <option value="TODAY">Generated Today Only</option>
+            <option value="ALL">All Time (No Filter)</option>
+            <option value="SPECIFIC">Specific Date...</option>
+          </select>
+          <input type="date" id="specific-date-input" class="hidden">
+          <button id="apply-date-filter-btn" class="btn btn-secondary btn-sm">Apply Filter</button>
+        </div>
+      </section>
+
+      <!-- Controls & Search Filter Toolbar -->
       <section class="toolbar">
         <div class="search-box">
           <input type="text" id="search-input" placeholder="Search prompt, ID, or filename...">
