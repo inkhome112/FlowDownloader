@@ -4,6 +4,7 @@ node_modules/
 # Production build outputs
 dist/
 dist-bin/
+*.tsbuildinfo
 
 # Runtime data & logs
 data/

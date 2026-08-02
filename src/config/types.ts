@@ -11,6 +11,11 @@ export interface AppConfig {
   userDataDir: string;
   flowUrl: string;
   autoScrollOnPoll?: boolean;
+  enableWebDashboard?: boolean;
+  webPort?: number;
+  enableDesktopNotifications?: boolean;
+  fileTemplate?: string;
+  generateThumbnails?: boolean;
 }
 
 export interface VideoRecord {
@@ -20,6 +25,7 @@ export interface VideoRecord {
   download_date?: string;
   filename?: string;
   filepath?: string;
+  thumbnail_path?: string;
   filesize?: number;
   checksum?: string;
   retry_count: number;

@@ -3,8 +3,20 @@ import crypto from 'crypto';
 import { DetectedFlowItem } from './types';
 import logger from '../logger/Logger';
 import { DiagnosticUtils } from '../utils/DiagnosticUtils';
+import { NetworkSniffer } from './NetworkSniffer';
+import { Watchdog } from './Watchdog';
 
 export class FlowDetector {
+  private static sniffer: NetworkSniffer | null = null;
+
+  public static attachSniffer(page: Page): NetworkSniffer {
+    if (!this.sniffer) {
+      this.sniffer = new NetworkSniffer();
+      this.sniffer.attach(page);
+    }
+    return this.sniffer;
+  }
+
   public static async ensureAuthenticated(page: Page, flowUrl: string): Promise<boolean> {
     logger.info(`Checking navigation state for ${flowUrl}...`);
     const currentUrl = page.url();
@@ -24,7 +36,6 @@ export class FlowDetector {
       logger.warn('FlowDownloader will automatically resume once authentication completes.');
       logger.warn('------------------------------------------------------------');
 
-      // Wait up to 10 minutes for manual user login
       try {
         await page.waitForURL((url) => url.toString().includes('labs.google'), { timeout: 600000 });
         logger.info('Authentication detected! User is now on Google Flow.');
@@ -34,13 +45,18 @@ export class FlowDetector {
       }
     }
 
-    // Give page a moment to settle
     await page.waitForTimeout(3000);
     return true;
   }
 
-  public static async detectItems(page: Page, autoScroll: boolean = true): Promise<DetectedFlowItem[]> {
-    logger.info('Scanning Google Flow DOM for video generations...');
+  public static async detectItems(page: Page, autoScroll: boolean = true, flowUrl: string = 'https://labs.google/flow'): Promise<DetectedFlowItem[]> {
+    // Health check via Watchdog
+    const healthy = await Watchdog.isHealthy(page);
+    if (!healthy) {
+      await Watchdog.recoverPage(page, flowUrl);
+    }
+
+    logger.info('Scanning Google Flow for video generations (DOM + Network Sniffer)...');
 
     if (autoScroll) {
       try {
@@ -53,26 +69,21 @@ export class FlowDetector {
       }
     }
 
-    // Execute in-page evaluation with multi-selector fallback
-    const items: DetectedFlowItem[] = await page.evaluate(() => {
+    // 1. DOM Selector Parsing
+    const domItems: DetectedFlowItem[] = await page.evaluate(() => {
       const results: { id: string; prompt: string; videoUrl?: string; status: 'completed' | 'generating' | 'failed'; rawElementInfo?: string }[] = [];
       const seenIds = new Set<string>();
 
-      // Selector strategy 1: Look for video containers & cards
       const videoElements = Array.from(document.querySelectorAll('video'));
-      
       videoElements.forEach((vidIndex, index) => {
         const vid = vidIndex as HTMLVideoElement;
         const src = vid.src || (vid.querySelector('source')?.src) || '';
-        
-        // Locate parent card container
         const card = vid.closest('[data-generation-id], [class*="card"], [class*="item"], [class*="generation"], article, div') || vid.parentElement;
-        
+
         let id = card?.getAttribute('data-generation-id') || card?.getAttribute('id') || '';
         let prompt = '';
 
         if (card) {
-          // Extract prompt text from card text elements
           const promptEl = card.querySelector('[class*="prompt"], [class*="title"], p, span, h2, h3, [aria-label]');
           if (promptEl) {
             prompt = promptEl.textContent?.trim() || promptEl.getAttribute('aria-label') || '';
@@ -80,14 +91,10 @@ export class FlowDetector {
         }
 
         if (!id && src) {
-          // Extract ID from URL path or URL parameters if available
           const match = src.match(/\/([a-zA-Z0-9_-]{10,})\b/);
-          if (match) {
-            id = match[1];
-          }
+          if (match) id = match[1];
         }
 
-        // Status detection
         let status: 'completed' | 'generating' | 'failed' = 'completed';
         if (!src || src.startsWith('blob:') === false && !src.startsWith('http')) {
           status = 'generating';
@@ -97,9 +104,7 @@ export class FlowDetector {
           status = 'failed';
         }
 
-        if (!id) {
-          id = `gen-${index + 1}`;
-        }
+        if (!id) id = `gen-${index + 1}`;
 
         if (!seenIds.has(id)) {
           seenIds.add(id);
@@ -113,7 +118,6 @@ export class FlowDetector {
         }
       });
 
-      // Selector strategy 2: Download links / buttons
       const downloadLinks = Array.from(document.querySelectorAll('a[download], a[href*=".mp4"], button[aria-label*="Download"], a[aria-label*="Download"]'));
       downloadLinks.forEach((link, index) => {
         const href = (link as HTMLAnchorElement).href || (link as HTMLAnchorElement).getAttribute('data-url') || '';
@@ -143,26 +147,37 @@ export class FlowDetector {
       return results;
     });
 
-    // Ensure all items have a unique deterministic ID if page returned relative IDs
-    const processedItems: DetectedFlowItem[] = items.map((item) => {
-      if (!item.id || item.id.startsWith('gen-') || item.id.startsWith('dl-')) {
+    // 2. Combine with Network Sniffer items
+    const sniffedItems = this.sniffer ? this.sniffer.getCapturedItems() : [];
+    const itemMap = new Map<string, DetectedFlowItem>();
+
+    domItems.forEach((item) => {
+      let finalId = item.id;
+      if (!finalId || finalId.startsWith('gen-') || finalId.startsWith('dl-')) {
         const hash = crypto
           .createHash('md5')
           .update(`${item.prompt}-${item.videoUrl || ''}`)
           .digest('hex')
           .slice(0, 12);
-        return { ...item, id: `flow-${hash}` };
+        finalId = `flow-${hash}`;
       }
-      return item;
+      itemMap.set(finalId, { ...item, id: finalId });
     });
 
-    logger.info(`Detected ${processedItems.length} video generation items on Google Flow.`);
+    sniffedItems.forEach((item) => {
+      if (!itemMap.has(item.id)) {
+        itemMap.set(item.id, item);
+      }
+    });
 
-    if (processedItems.length === 0) {
+    const combinedItems = Array.from(itemMap.values());
+    logger.info(`Detected ${combinedItems.length} video generation items on Google Flow (DOM: ${domItems.length}, Network: ${sniffedItems.length}).`);
+
+    if (combinedItems.length === 0) {
       logger.warn('No video generation items detected on page. Capturing diagnostic snapshot...');
       await DiagnosticUtils.captureDiagnostics(page, 'no-items-detected');
     }
 
-    return processedItems;
+    return combinedItems;
   }
 }

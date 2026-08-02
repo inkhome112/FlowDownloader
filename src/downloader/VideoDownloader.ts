@@ -5,6 +5,9 @@ import { AppConfig } from '../config/types';
 import { DetectedFlowItem } from '../flow/types';
 import { DatabaseManager } from '../storage/Database';
 import { FileUtils } from '../utils/FileUtils';
+import { TemplateEngine } from '../utils/TemplateEngine';
+import { MediaProcessor } from './MediaProcessor';
+import { Notifier } from '../utils/Notifier';
 import logger from '../logger/Logger';
 
 export class VideoDownloader {
@@ -53,14 +56,33 @@ export class VideoDownloader {
           const result = await this.downloadVideoFile(page, item);
           const checksum = await FileUtils.calculateSHA256(result.filepath);
 
+          // Post-processing: Embed metadata & generate thumbnail if enabled
+          MediaProcessor.embedMetadata(result.filepath, item.prompt, item.id);
+          
+          let thumbnailPath: string | undefined = undefined;
+          if (this.config.generateThumbnails) {
+            const thumbDir = path.join(this.config.downloadFolder, 'thumbnails');
+            thumbnailPath = MediaProcessor.generateThumbnail(result.filepath, thumbDir, item.id);
+          }
+
           this.db.markCompleted(item.id, {
             filename: result.filename,
             filepath: result.filepath,
             filesize: result.filesize,
             checksum,
+            thumbnail_path: thumbnailPath,
           });
 
           logger.info(`Successfully downloaded ${result.filename} (${(result.filesize / 1024 / 1024).toFixed(2)} MB)`);
+
+          // Windows Desktop Notification
+          if (this.config.enableDesktopNotifications) {
+            Notifier.notify(
+              'FlowDownloader - New Video Saved 🎬',
+              `Downloaded: "${item.prompt.slice(0, 50)}..."`
+            );
+          }
+
           downloaded++;
           success = true;
         } catch (err) {
@@ -85,10 +107,16 @@ export class VideoDownloader {
     page: Page,
     item: DetectedFlowItem
   ): Promise<{ filename: string; filepath: string; filesize: number }> {
-    const safePrompt = FileUtils.sanitizeFilename(item.prompt || 'flow_video');
-    const safeId = FileUtils.sanitizeFilename(item.id);
-    const filename = `${safePrompt}_${safeId}.mp4`;
-    const targetPath = path.join(this.config.downloadFolder, filename);
+    const template = this.config.fileTemplate || '{prompt_slug}_{id}.{ext}';
+    const { filename, fullPath: targetPath } = TemplateEngine.formatPath(
+      template,
+      this.config.downloadFolder,
+      item.id,
+      item.prompt,
+      'mp4'
+    );
+
+    FileUtils.ensureDirectory(path.dirname(targetPath));
 
     const videoUrl = item.videoUrl!;
 

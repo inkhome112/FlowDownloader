@@ -6,24 +6,52 @@ import logger from '../logger/Logger';
 
 export class DatabaseManager {
   private static instance: DatabaseManager;
-  private db: SqliteDatabase;
+  private db!: SqliteDatabase;
+  private dbPath: string;
 
   private constructor(dbPath?: string) {
-    const targetPath = dbPath || path.resolve(process.cwd(), 'data', 'flowdownloader.db');
-    const dir = path.dirname(targetPath);
+    this.dbPath = dbPath || path.resolve(process.cwd(), 'data', 'flowdownloader.db');
+    this.openDatabase();
+    this.initSchema();
+  }
+
+  private openDatabase(): SqliteDatabase {
+    const dir = path.dirname(this.dbPath);
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
     }
-
-    this.db = new DatabaseConstructor(targetPath);
+    if (this.db) {
+      try {
+        this.db.close();
+      } catch (err) {
+        // Ignore close errors
+      }
+    }
+    this.db = new DatabaseConstructor(this.dbPath);
     this.db.pragma('journal_mode = WAL');
-    this.initSchema();
-    logger.info(`Database initialized at ${targetPath}`);
+    return this.db;
+  }
+
+  private getDb(): SqliteDatabase {
+    if (!this.db) {
+      return this.openDatabase();
+    }
+    try {
+      this.db.pragma('user_version');
+      return this.db;
+    } catch (err) {
+      return this.openDatabase();
+    }
   }
 
   public static getInstance(dbPath?: string): DatabaseManager {
     if (!DatabaseManager.instance) {
       DatabaseManager.instance = new DatabaseManager(dbPath);
+    } else if (dbPath && DatabaseManager.instance.dbPath !== dbPath) {
+      DatabaseManager.instance.close();
+      DatabaseManager.instance = new DatabaseManager(dbPath);
+    } else {
+      DatabaseManager.instance.getDb();
     }
     return DatabaseManager.instance;
   }
@@ -37,6 +65,7 @@ export class DatabaseManager {
         download_date TEXT,
         filename TEXT,
         filepath TEXT,
+        thumbnail_path TEXT,
         filesize INTEGER,
         checksum TEXT,
         retry_count INTEGER DEFAULT 0,
@@ -46,11 +75,23 @@ export class DatabaseManager {
       );
       CREATE INDEX IF NOT EXISTS idx_videos_status ON videos(download_status);
     `;
-    this.db.exec(query);
+    this.getDb().exec(query);
+
+    try {
+      const tableInfo = this.getDb().prepare("PRAGMA table_info('videos')").all() as any[];
+      const hasThumbnailCol = tableInfo.some((col) => col.name === 'thumbnail_path');
+      if (!hasThumbnailCol) {
+        this.getDb().exec('ALTER TABLE videos ADD COLUMN thumbnail_path TEXT;');
+        logger.info('Migrated SQLite schema: added thumbnail_path column.');
+      }
+    } catch (err) {
+      // Ignore migration errors if column exists
+    }
   }
 
   public getVideo(id: string): VideoRecord | undefined {
-    const stmt = this.db.prepare('SELECT * FROM videos WHERE id = ?');
+    const db = this.getDb();
+    const stmt = db.prepare('SELECT * FROM videos WHERE id = ?');
     return stmt.get(id) as VideoRecord | undefined;
   }
 
@@ -67,7 +108,8 @@ export class DatabaseManager {
       return existing;
     }
 
-    const stmt = this.db.prepare(`
+    const db = this.getDb();
+    const stmt = db.prepare(`
       INSERT INTO videos (id, prompt, download_status, retry_count, created_at, updated_at)
       VALUES (?, ?, 'PENDING', 0, ?, ?)
     `);
@@ -77,10 +119,11 @@ export class DatabaseManager {
 
   public markCompleted(
     id: string,
-    details: { filename: string; filepath: string; filesize: number; checksum: string }
+    details: { filename: string; filepath: string; filesize: number; checksum: string; thumbnail_path?: string }
   ): void {
     const now = new Date().toISOString();
-    const stmt = this.db.prepare(`
+    const db = this.getDb();
+    const stmt = db.prepare(`
       UPDATE videos
       SET download_status = 'COMPLETED',
           download_date = ?,
@@ -88,17 +131,19 @@ export class DatabaseManager {
           filepath = ?,
           filesize = ?,
           checksum = ?,
+          thumbnail_path = ?,
           error_message = NULL,
           updated_at = ?
       WHERE id = ?
     `);
-    stmt.run(now, details.filename, details.filepath, details.filesize, details.checksum, now, id);
+    stmt.run(now, details.filename, details.filepath, details.filesize, details.checksum, details.thumbnail_path || null, now, id);
     logger.info(`Video ${id} marked as COMPLETED (${details.filename})`);
   }
 
   public markFailed(id: string, errorMessage: string): void {
     const now = new Date().toISOString();
-    const stmt = this.db.prepare(`
+    const db = this.getDb();
+    const stmt = db.prepare(`
       UPDATE videos
       SET download_status = 'FAILED',
           retry_count = retry_count + 1,
@@ -112,7 +157,8 @@ export class DatabaseManager {
 
   public incrementRetry(id: string, errorMessage: string): void {
     const now = new Date().toISOString();
-    const stmt = this.db.prepare(`
+    const db = this.getDb();
+    const stmt = db.prepare(`
       UPDATE videos
       SET retry_count = retry_count + 1,
           error_message = ?,
@@ -123,10 +169,11 @@ export class DatabaseManager {
   }
 
   public getStats(): { total: number; completed: number; pending: number; failed: number } {
-    const totalStmt = this.db.prepare('SELECT COUNT(*) as count FROM videos');
-    const completedStmt = this.db.prepare("SELECT COUNT(*) as count FROM videos WHERE download_status = 'COMPLETED'");
-    const pendingStmt = this.db.prepare("SELECT COUNT(*) as count FROM videos WHERE download_status = 'PENDING'");
-    const failedStmt = this.db.prepare("SELECT COUNT(*) as count FROM videos WHERE download_status = 'FAILED'");
+    const db = this.getDb();
+    const totalStmt = db.prepare('SELECT COUNT(*) as count FROM videos');
+    const completedStmt = db.prepare("SELECT COUNT(*) as count FROM videos WHERE download_status = 'COMPLETED'");
+    const pendingStmt = db.prepare("SELECT COUNT(*) as count FROM videos WHERE download_status = 'PENDING'");
+    const failedStmt = db.prepare("SELECT COUNT(*) as count FROM videos WHERE download_status = 'FAILED'");
 
     return {
       total: (totalStmt.get() as any).count,
@@ -136,12 +183,34 @@ export class DatabaseManager {
     };
   }
 
-  public getAllRecords(): VideoRecord[] {
-    const stmt = this.db.prepare('SELECT * FROM videos ORDER BY created_at DESC');
-    return stmt.all() as VideoRecord[];
+  public getAllRecords(search?: string, statusFilter?: string): VideoRecord[] {
+    const db = this.getDb();
+    let sql = 'SELECT * FROM videos WHERE 1=1';
+    const params: any[] = [];
+
+    if (search) {
+      sql += ' AND (prompt LIKE ? OR filename LIKE ? OR id LIKE ?)';
+      const term = `%${search}%`;
+      params.push(term, term, term);
+    }
+
+    if (statusFilter && statusFilter !== 'ALL') {
+      sql += ' AND download_status = ?';
+      params.push(statusFilter);
+    }
+
+    sql += ' ORDER BY created_at DESC';
+    const stmt = db.prepare(sql);
+    return stmt.all(...params) as VideoRecord[];
   }
 
   public close(): void {
-    this.db.close();
+    if (this.db) {
+      try {
+        this.db.close();
+      } catch (err) {
+        // Ignore close errors
+      }
+    }
   }
 }

@@ -31,6 +31,11 @@ export class ConfigManager {
       userDataDir: path.resolve(process.cwd(), 'user_data'),
       flowUrl: 'https://labs.google/flow',
       autoScrollOnPoll: true,
+      enableWebDashboard: true,
+      webPort: 3000,
+      enableDesktopNotifications: true,
+      fileTemplate: '{prompt_slug}_{id}.{ext}',
+      generateThumbnails: true,
     };
   }
 
@@ -44,7 +49,7 @@ export class ConfigManager {
     try {
       const raw = fs.readFileSync(this.configPath, 'utf-8');
       const parsed = JSON.parse(raw);
-      
+
       const config: AppConfig = {
         downloadFolder: parsed.downloadFolder
           ? path.resolve(process.cwd(), parsed.downloadFolder)
@@ -62,6 +67,11 @@ export class ConfigManager {
           : defaults.userDataDir,
         flowUrl: parsed.flowUrl || defaults.flowUrl,
         autoScrollOnPoll: parsed.autoScrollOnPoll !== undefined ? parsed.autoScrollOnPoll : defaults.autoScrollOnPoll,
+        enableWebDashboard: parsed.enableWebDashboard !== undefined ? parsed.enableWebDashboard : defaults.enableWebDashboard,
+        webPort: typeof parsed.webPort === 'number' ? parsed.webPort : defaults.webPort,
+        enableDesktopNotifications: parsed.enableDesktopNotifications !== undefined ? parsed.enableDesktopNotifications : defaults.enableDesktopNotifications,
+        fileTemplate: parsed.fileTemplate || defaults.fileTemplate,
+        generateThumbnails: parsed.generateThumbnails !== undefined ? parsed.generateThumbnails : defaults.generateThumbnails,
       };
 
       return config;

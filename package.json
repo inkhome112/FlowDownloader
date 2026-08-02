@@ -1,13 +1,13 @@
 {
   "name": "flowdownloader",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Production-quality Windows application to automatically download completed Google Flow videos.",
   "main": "dist/index.js",
   "bin": {
     "flowdownloader": "dist/index.js"
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && node -e \"require('fs').cpSync('src/web/public', 'dist/web/public', {recursive: true})\"",
     "test": "tsx --test tests/unit.test.ts",
     "start": "node dist/index.js start",
     "cli": "node dist/index.js",
@@ -27,13 +27,17 @@
     "better-sqlite3": "^13.0.2",
     "commander": "^12.1.0",
     "dotenv": "^17.0.0",
+    "express": "^4.21.2",
+    "node-notifier": "^10.0.1",
     "playwright": "^1.50.0",
     "winston": "^3.17.0",
     "winston-daily-rotate-file": "^5.0.0"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.12",
+    "@types/express": "^5.0.0",
     "@types/node": "^22.13.0",
+    "@types/node-notifier": "^8.0.5",
     "tsx": "^4.19.2",
     "typescript": "^5.7.3"
   }

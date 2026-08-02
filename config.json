@@ -1,12 +1,17 @@
 {
-  "downloadFolder": "D:\\FlowDownloader\\downloads",
+  "downloadFolder": "./downloads",
   "pollIntervalMs": 30000,
   "retryCount": 3,
   "headless": false,
   "browserStrategy": "auto",
   "cdpPort": 9222,
   "chromeExecutablePath": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
-  "userDataDir": "D:\\FlowDownloader\\user_data",
+  "userDataDir": "./user_data",
   "flowUrl": "https://labs.google/flow",
-  "autoScrollOnPoll": true
+  "autoScrollOnPoll": true,
+  "enableWebDashboard": true,
+  "webPort": 3000,
+  "enableDesktopNotifications": true,
+  "fileTemplate": "{prompt_slug}_{id}.{ext}",
+  "generateThumbnails": true
 }

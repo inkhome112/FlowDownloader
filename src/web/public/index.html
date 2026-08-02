@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FlowDownloader Dashboard</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Sidebar / Header -->
+    <header class="navbar">
+      <div class="logo">
+        <span class="icon">🎬</span>
+        <h1>FlowDownloader</h1>
+        <span class="badge">v1.1</span>
+      </div>
+      <div class="actions">
+        <button id="trigger-sync-btn" class="btn btn-primary">
+          <span class="btn-icon">⚡</span> Trigger Sync
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="content">
+      <!-- Stats Cards Row -->
+      <section class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-title">Total Tracked</div>
+          <div id="stat-total" class="stat-value">0</div>
+        </div>
+        <div class="stat-card stat-success">
+          <div class="stat-title">Completed</div>
+          <div id="stat-completed" class="stat-value">0</div>
+        </div>
+        <div class="stat-card stat-warning">
+          <div class="stat-title">Pending</div>
+          <div id="stat-pending" class="stat-value">0</div>
+        </div>
+        <div class="stat-card stat-danger">
+          <div class="stat-title">Failed</div>
+          <div id="stat-failed" class="stat-value">0</div>
+        </div>
+      </section>
+
+      <!-- Controls & Filter Toolbar -->
+      <section class="toolbar">
+        <div class="search-box">
+          <input type="text" id="search-input" placeholder="Search prompt, ID, or filename...">
+        </div>
+        <div class="filter-box">
+          <select id="status-filter">
+            <option value="ALL">All Statuses</option>
+            <option value="COMPLETED">Completed</option>
+            <option value="PENDING">Pending</option>
+            <option value="FAILED">Failed</option>
+          </select>
+        </div>
+      </section>
+
+      <!-- Video Grid Container -->
+      <section id="video-grid" class="video-grid">
+        <!-- Dynamically injected video cards -->
+      </section>
+    </main>
+
+    <!-- Video Preview Modal -->
+    <div id="video-modal" class="modal hidden">
+      <div class="modal-backdrop"></div>
+      <div class="modal-content">
+        <button id="modal-close-btn" class="modal-close">&times;</button>
+        <h3 id="modal-title">Video Preview</h3>
+        <video id="modal-video-player" controls autoplay></video>
+        <div id="modal-meta" class="modal-meta"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
