@@ -30,9 +30,23 @@ export class WebServer {
 
   private setupMiddleware(): void {
     this.app.use(express.json());
+
+    // Force browser to always fetch fresh HTML (cache-busting for index.html)
+    this.app.get('/', (_req: Request, res: Response) => {
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+      const indexPath = path.resolve(__dirname, 'public', 'index.html');
+      if (fs.existsSync(indexPath)) {
+        res.sendFile(indexPath);
+      } else {
+        res.status(404).send('Dashboard not found.');
+      }
+    });
+
     const publicDir = path.resolve(__dirname, 'public');
     if (fs.existsSync(publicDir)) {
-      this.app.use(express.static(publicDir));
+      this.app.use(express.static(publicDir, { etag: false, maxAge: 0 }));
     }
   }
 

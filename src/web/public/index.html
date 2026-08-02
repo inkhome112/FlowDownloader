@@ -4,19 +4,20 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>FlowDownloader Dashboard</title>
-  <link rel="stylesheet" href="style.css">
+  <!-- Cache-busted assets - bump version to force fresh load -->
+  <link rel="stylesheet" href="style.css?v=1.2.0">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
   <div class="app-container">
-    <!-- Sidebar / Header -->
+    <!-- Header / Navbar -->
     <header class="navbar">
       <div class="logo">
         <span class="icon">🎬</span>
         <h1>FlowDownloader</h1>
-        <span class="badge">v1.1</span>
+        <span class="badge">v1.2</span>
       </div>
       <div class="actions">
         <button id="trigger-sync-btn" class="btn btn-primary">
@@ -47,32 +48,47 @@
         </div>
       </section>
 
-      <!-- Settings & Controls Bar -->
-      <section class="date-filter-bar">
-        <div class="filter-group">
-          <label for="date-filter-mode">📅 Download Filter:</label>
-          <select id="date-filter-mode">
-            <option value="TODAY">Generated Today Only</option>
-            <option value="ALL">All Time (No Filter)</option>
-            <option value="SPECIFIC">Specific Date...</option>
-          </select>
-          <input type="date" id="specific-date-input" class="hidden">
-          <button id="apply-date-filter-btn" class="btn btn-secondary btn-sm">Apply Filter</button>
+      <!-- Settings Panel -->
+      <section class="settings-panel">
+
+        <!-- Date Filter Row -->
+        <div class="settings-row">
+          <div class="settings-row-label">📅 Download Filter</div>
+          <div class="settings-row-controls">
+            <select id="date-filter-mode">
+              <option value="TODAY">Generated Today Only</option>
+              <option value="ALL">All Time (No Filter)</option>
+              <option value="SPECIFIC">Specific Date...</option>
+            </select>
+            <input type="date" id="specific-date-input" class="hidden">
+            <button id="apply-date-filter-btn" class="btn btn-secondary btn-sm">Apply Filter</button>
+          </div>
         </div>
-        <div class="filter-group storage-group">
-          <label for="enable-archiving-chk">🧹 Auto-Archive Storage:</label>
-          <input type="checkbox" id="enable-archiving-chk">
-          <span class="storage-label">Max GB:</span>
-          <input type="number" id="max-storage-gb" min="1" max="1000" style="width: 70px;">
-          <span class="storage-label">Max Days:</span>
-          <input type="number" id="auto-archive-days" min="1" max="365" style="width: 70px;">
-          <button id="save-storage-btn" class="btn btn-secondary btn-sm">Save Quota</button>
+
+        <!-- Storage Quota Row -->
+        <div class="settings-row settings-row-storage">
+          <div class="settings-row-label">🗂️ Storage Auto-Archive</div>
+          <div class="settings-row-controls">
+            <label class="toggle-switch">
+              <input type="checkbox" id="enable-archiving-chk">
+              <span class="toggle-slider"></span>
+            </label>
+            <span class="settings-sep">Max Storage:</span>
+            <input type="number" id="max-storage-gb" min="1" max="2000" class="settings-number-input">
+            <span class="settings-unit">GB</span>
+            <span class="settings-sep">Retention:</span>
+            <input type="number" id="auto-archive-days" min="1" max="365" class="settings-number-input">
+            <span class="settings-unit">days</span>
+            <button id="save-storage-btn" class="btn btn-secondary btn-sm">Save</button>
+          </div>
         </div>
+
       </section>
 
-      <!-- Controls & Search Filter Toolbar -->
+      <!-- Search & Status Toolbar -->
       <section class="toolbar">
         <div class="search-box">
+          <span class="search-icon">🔍</span>
           <input type="text" id="search-input" placeholder="Search prompt, ID, or filename...">
         </div>
         <div class="filter-box">
@@ -85,7 +101,7 @@
         </div>
       </section>
 
-      <!-- Video Grid Container -->
+      <!-- Video Grid -->
       <section id="video-grid" class="video-grid">
         <!-- Dynamically injected video cards -->
       </section>
@@ -103,6 +119,6 @@
     </div>
   </div>
 
-  <script src="app.js"></script>
+  <script src="app.js?v=1.2.0"></script>
 </body>
 </html>
