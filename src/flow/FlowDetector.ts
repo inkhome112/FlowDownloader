@@ -2,7 +2,6 @@ import { Page } from 'playwright';
 import crypto from 'crypto';
 import { DetectedFlowItem } from './types';
 import logger from '../logger/Logger';
-import { DiagnosticUtils } from '../utils/DiagnosticUtils';
 import { NetworkSniffer } from './NetworkSniffer';
 import { Watchdog } from './Watchdog';
 
@@ -174,8 +173,7 @@ export class FlowDetector {
     logger.info(`Detected ${combinedItems.length} video generation items on Google Flow (DOM: ${domItems.length}, Network: ${sniffedItems.length}).`);
 
     if (combinedItems.length === 0) {
-      logger.warn('No video generation items detected on page. Capturing diagnostic snapshot...');
-      await DiagnosticUtils.captureDiagnostics(page, 'no-items-detected');
+      logger.warn('No video generation items detected on page. This is normal if the Flow page is still loading or has no generations yet.');
     }
 
     return combinedItems;

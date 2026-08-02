@@ -4,9 +4,9 @@ import path from 'path';
 import fs from 'fs';
 import { ConfigManager } from '../config/ConfigManager';
 import { DatabaseManager } from '../storage/Database';
-import { MediaProcessor } from '../downloader/MediaProcessor';
-import { BackfillThumbnails } from '../utils/BackfillThumbnails';
 import logger from '../logger/Logger';
+
+const BUILD_TS = Date.now(); // unique per server start — busts browser cache
 
 export class WebServer {
   private app: express.Express;
@@ -31,106 +31,80 @@ export class WebServer {
   private setupMiddleware(): void {
     this.app.use(express.json());
 
-    // Force browser to always fetch fresh HTML (cache-busting for index.html)
+    // Serve index.html with live cache-busting version injected into asset URLs.
+    // This guarantees the browser always loads the latest app.js and style.css.
     this.app.get('/', (_req: Request, res: Response) => {
+      const indexPath = path.resolve(__dirname, 'public', 'index.html');
+      if (!fs.existsSync(indexPath)) {
+        return res.status(404).send('Dashboard not found.');
+      }
+      let html = fs.readFileSync(indexPath, 'utf-8');
+      // Inject build timestamp so each server restart = fresh assets
+      html = html.replace(/\?v=[\w.]+/g, `?v=${BUILD_TS}`);
+      res.setHeader('Content-Type', 'text/html');
       res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
       res.setHeader('Pragma', 'no-cache');
       res.setHeader('Expires', '0');
-      const indexPath = path.resolve(__dirname, 'public', 'index.html');
-      if (fs.existsSync(indexPath)) {
-        res.sendFile(indexPath);
-      } else {
-        res.status(404).send('Dashboard not found.');
-      }
+      res.send(html);
     });
 
     const publicDir = path.resolve(__dirname, 'public');
     if (fs.existsSync(publicDir)) {
-      this.app.use(express.static(publicDir, { etag: false, maxAge: 0 }));
+      // Static files: short cache so ?v= busting works on refresh
+      this.app.use(express.static(publicDir, { etag: false, maxAge: '1s' }));
     }
   }
 
   private setupRoutes(): void {
     const configManager = ConfigManager.getInstance();
 
-    // GET /api/stats - Dashboard counters
+    // GET /api/stats
     this.app.get('/api/stats', (_req: Request, res: Response) => {
       try {
-        const stats = this.getDb().getStats();
-        res.json(stats);
+        res.json(this.getDb().getStats());
       } catch (err) {
-        if ((err as Error).message.includes('not open')) {
-          const stats = DatabaseManager.getInstance().getStats();
-          return res.json(stats);
-        }
-        console.error('API STATS ERROR:', err);
+        if ((err as Error).message.includes('not open')) return res.json(DatabaseManager.getInstance().getStats());
         res.status(500).json({ error: (err as Error).message });
       }
     });
 
-    // GET /api/videos - List videos with search & status filter
+    // GET /api/videos
     this.app.get('/api/videos', (req: Request, res: Response) => {
       try {
         const search = (req.query.search as string) || '';
         const status = (req.query.status as string) || 'ALL';
-        const records = this.getDb().getAllRecords(search, status);
-        res.json(records);
+        res.json(this.getDb().getAllRecords(search, status));
       } catch (err) {
         if ((err as Error).message.includes('not open')) {
           const search = (req.query.search as string) || '';
           const status = (req.query.status as string) || 'ALL';
-          const records = DatabaseManager.getInstance().getAllRecords(search, status);
-          return res.json(records);
+          return res.json(DatabaseManager.getInstance().getAllRecords(search, status));
         }
-        console.error('API VIDEOS ERROR:', err);
         res.status(500).json({ error: (err as Error).message });
       }
     });
 
-    // GET /api/thumbnail/:id - Serve video thumbnail image
-    this.app.get('/api/thumbnail/:id', (req: Request, res: Response) => {
+    // GET /api/video-info/:id — lightweight check for filepath existence
+    this.app.get('/api/video-info/:id', (req: Request, res: Response) => {
       try {
-        const videoId = String(req.params.id);
-        const db = this.getDb();
-        const record = db.getVideo(videoId);
-        if (!record) {
-          return res.status(404).send('Not found');
-        }
-
-        let thumbPath = record.thumbnail_path;
-        if ((!thumbPath || !fs.existsSync(thumbPath)) && record.filepath && fs.existsSync(record.filepath)) {
-          const config = configManager.getConfig();
-          const thumbDir = path.join(config.downloadFolder, 'thumbnails');
-          thumbPath = MediaProcessor.generateThumbnail(record.filepath, thumbDir, record.id);
-          if (thumbPath) {
-            db.markCompleted(record.id, {
-              filename: record.filename || `${record.id}.mp4`,
-              filepath: record.filepath,
-              filesize: record.filesize || 0,
-              checksum: record.checksum || '',
-              thumbnail_path: thumbPath,
-            });
-          }
-        }
-
-        if (thumbPath && fs.existsSync(thumbPath)) {
-          res.setHeader('Content-Type', 'image/jpeg');
-          res.setHeader('Cache-Control', 'public, max-age=86400');
-          return fs.createReadStream(thumbPath).pipe(res);
-        }
-
-        return res.status(404).send('Thumbnail unavailable');
+        const record = this.getDb().getVideo(String(req.params.id));
+        if (!record) return res.status(404).json({ exists: false });
+        const fileExists = !!(record.filepath && fs.existsSync(record.filepath));
+        res.json({
+          id: record.id,
+          exists: fileExists,
+          filesize: record.filesize || 0,
+          download_status: record.download_status,
+        });
       } catch (err) {
-        console.error('API THUMBNAIL ERROR:', err);
-        return res.status(500).send('Internal Server Error');
+        res.status(500).json({ exists: false, error: (err as Error).message });
       }
     });
 
-    // GET /api/stream/:id - Stream video file directly
+    // GET /api/stream/:id — range-aware video streaming
     this.app.get('/api/stream/:id', (req: Request, res: Response) => {
       try {
-        const videoId = String(req.params.id);
-        const record = this.getDb().getVideo(videoId);
+        const record = this.getDb().getVideo(String(req.params.id));
         if (!record || !record.filepath || !fs.existsSync(record.filepath)) {
           return res.status(404).json({ error: 'Video file not found' });
         }
@@ -139,33 +113,28 @@ export class WebServer {
         const fileSize = stat.size;
         const rawRange = req.headers['range'];
         const rangeStr: string | undefined = typeof rawRange === 'string'
-          ? rawRange
-          : (Array.isArray(rawRange) ? rawRange[0] : undefined);
+          ? rawRange : (Array.isArray(rawRange) ? rawRange[0] : undefined);
 
         if (rangeStr) {
           const parts = rangeStr.replace(/bytes=/, '').split('-');
           const start = parseInt(parts[0], 10);
           const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
-          const chunksize = end - start + 1;
-          const file = fs.createReadStream(record.filepath, { start, end });
-          const head = {
+          res.writeHead(206, {
             'Content-Range': `bytes ${start}-${end}/${fileSize}`,
             'Accept-Ranges': 'bytes',
-            'Content-Length': chunksize,
+            'Content-Length': end - start + 1,
             'Content-Type': 'video/mp4',
-          };
-          res.writeHead(206, head);
-          file.pipe(res);
+          });
+          fs.createReadStream(record.filepath, { start, end }).pipe(res);
         } else {
-          const head = {
+          res.writeHead(200, {
             'Content-Length': fileSize,
             'Content-Type': 'video/mp4',
-          };
-          res.writeHead(200, head);
+            'Accept-Ranges': 'bytes',
+          });
           fs.createReadStream(record.filepath).pipe(res);
         }
       } catch (err) {
-        console.error('API STREAM ERROR:', err);
         res.status(500).json({ error: (err as Error).message });
       }
     });
@@ -176,11 +145,10 @@ export class WebServer {
     });
 
     this.app.post('/api/config', (req: Request, res: Response) => {
-      const updated = configManager.updateConfig(req.body);
-      res.json(updated);
+      res.json(configManager.updateConfig(req.body));
     });
 
-    // POST /api/trigger - Immediate scan cycle trigger
+    // POST /api/trigger
     this.app.post('/api/trigger', async (_req: Request, res: Response) => {
       if (this.onTriggerSync) {
         this.onTriggerSync().catch(() => {});
@@ -192,7 +160,6 @@ export class WebServer {
 
   public start(): Promise<void> {
     return new Promise((resolve) => {
-      BackfillThumbnails.run();
       this.server = this.app.listen(this.port, () => {
         logger.info(`Web GUI Dashboard listening at http://localhost:${this.port}`);
         resolve();
