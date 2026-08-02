@@ -13,6 +13,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const specificDateInput = document.getElementById('specific-date-input');
   const applyDateFilterBtn = document.getElementById('apply-date-filter-btn');
 
+  const enableArchivingChk = document.getElementById('enable-archiving-chk');
+  const maxStorageGbInput = document.getElementById('max-storage-gb');
+  const autoArchiveDaysInput = document.getElementById('auto-archive-days');
+  const saveStorageBtn = document.getElementById('save-storage-btn');
+
   const modal = document.getElementById('video-modal');
   const modalCloseBtn = document.getElementById('modal-close-btn');
   const modalPlayer = document.getElementById('modal-video-player');
@@ -27,6 +32,15 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       if (config.specificDate) {
         specificDateInput.value = config.specificDate;
+      }
+      if (config.enableAutoArchiving !== undefined) {
+        enableArchivingChk.checked = Boolean(config.enableAutoArchiving);
+      }
+      if (config.maxStorageGb) {
+        maxStorageGbInput.value = config.maxStorageGb;
+      }
+      if (config.autoArchiveDays) {
+        autoArchiveDaysInput.value = config.autoArchiveDays;
       }
       toggleSpecificDateVisibility();
     } catch (err) {
@@ -63,6 +77,29 @@ document.addEventListener('DOMContentLoaded', () => {
     } finally {
       applyDateFilterBtn.disabled = false;
       applyDateFilterBtn.textContent = 'Apply Filter';
+    }
+  });
+
+  saveStorageBtn.addEventListener('click', async () => {
+    try {
+      saveStorageBtn.disabled = true;
+      saveStorageBtn.textContent = 'Saving...';
+      const payload = {
+        enableAutoArchiving: enableArchivingChk.checked,
+        maxStorageGb: parseInt(maxStorageGbInput.value, 10) || 50,
+        autoArchiveDays: parseInt(autoArchiveDaysInput.value, 10) || 30,
+      };
+      await fetch('/api/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      alert('Storage quota and auto-archiving settings saved.');
+    } catch (err) {
+      alert('Failed to save storage settings.');
+    } finally {
+      saveStorageBtn.disabled = false;
+      saveStorageBtn.textContent = 'Save Quota';
     }
   });
 
@@ -104,8 +141,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     videoGrid.innerHTML = records.map(rec => `
       <div class="video-card">
-        <div class="video-thumb" onclick="openModal('${rec.id}', '${escapeHtml(rec.prompt)}', '${rec.download_status}')">
+        <div class="video-thumb" onmouseenter="startHoverPreview(this, '${rec.id}', '${rec.download_status}')" onmouseleave="stopHoverPreview(this)" onclick="openModal('${rec.id}', '${escapeHtml(rec.prompt)}', '${rec.download_status}')">
           <img src="/api/thumbnail/${rec.id}" alt="${escapeHtml(rec.prompt)}" loading="lazy" onerror="this.style.display='none'">
+          <video class="hover-video-preview hidden" loop muted playsinline></video>
           <div class="play-overlay">▶</div>
         </div>
         <div class="card-body">
@@ -118,6 +156,26 @@ document.addEventListener('DOMContentLoaded', () => {
       </div>
     `).join('');
   }
+
+  window.startHoverPreview = function(container, id, status) {
+    if (status !== 'COMPLETED') return;
+    const video = container.querySelector('.hover-video-preview');
+    if (!video) return;
+
+    if (!video.src) {
+      video.src = `/api/stream/${id}`;
+    }
+    video.classList.remove('hidden');
+    video.play().catch(() => {});
+  };
+
+  window.stopHoverPreview = function(container) {
+    const video = container.querySelector('.hover-video-preview');
+    if (!video) return;
+    video.pause();
+    video.currentTime = 0;
+    video.classList.add('hidden');
+  };
 
   window.openModal = function(id, prompt, status) {
     if (status !== 'COMPLETED') {

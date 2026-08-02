@@ -40,6 +40,10 @@ export class ConfigManager {
       autoOpenWebBrowser: true,
       dateFilterMode: 'TODAY',
       specificDate: '',
+      enableAutoArchiving: false,
+      maxStorageGb: 50,
+      autoArchiveDays: 30,
+      hoverVideoPreview: true,
     };
   }
 

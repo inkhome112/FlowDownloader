@@ -17,6 +17,10 @@ export interface AppConfig {
   autoOpenWebBrowser?: boolean;
   dateFilterMode?: 'TODAY' | 'ALL' | 'SPECIFIC';
   specificDate?: string;
+  enableAutoArchiving?: boolean;
+  maxStorageGb?: number;
+  autoArchiveDays?: number;
+  hoverVideoPreview?: boolean;
 }
 
 export interface VideoRecord {

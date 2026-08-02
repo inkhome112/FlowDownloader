@@ -47,7 +47,7 @@
         </div>
       </section>
 
-      <!-- Date Filter Bar -->
+      <!-- Settings & Controls Bar -->
       <section class="date-filter-bar">
         <div class="filter-group">
           <label for="date-filter-mode">📅 Download Filter:</label>
@@ -58,6 +58,15 @@
           </select>
           <input type="date" id="specific-date-input" class="hidden">
           <button id="apply-date-filter-btn" class="btn btn-secondary btn-sm">Apply Filter</button>
+        </div>
+        <div class="filter-group storage-group">
+          <label for="enable-archiving-chk">🧹 Auto-Archive Storage:</label>
+          <input type="checkbox" id="enable-archiving-chk">
+          <span class="storage-label">Max GB:</span>
+          <input type="number" id="max-storage-gb" min="1" max="1000" style="width: 70px;">
+          <span class="storage-label">Max Days:</span>
+          <input type="number" id="auto-archive-days" min="1" max="365" style="width: 70px;">
+          <button id="save-storage-btn" class="btn btn-secondary btn-sm">Save Quota</button>
         </div>
       </section>
 

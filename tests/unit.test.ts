@@ -6,6 +6,7 @@ import { ConfigManager } from '../src/config/ConfigManager';
 import { DatabaseManager } from '../src/storage/Database';
 import { FileUtils } from '../src/utils/FileUtils';
 import { TemplateEngine } from '../src/utils/TemplateEngine';
+import { StorageManager } from '../src/downloader/StorageManager';
 import { WebServer } from '../src/web/WebServer';
 
 describe('FileUtils & TemplateEngine Tests', () => {
@@ -35,8 +36,8 @@ describe('FileUtils & TemplateEngine Tests', () => {
   });
 });
 
-describe('ConfigManager Tests', () => {
-  test('ConfigManager should return valid upgraded default config with date filtering and auto browser launch', () => {
+describe('ConfigManager & StorageManager Tests', () => {
+  test('ConfigManager should return valid upgraded default config', () => {
     const config = ConfigManager.getInstance().getConfig();
     assert.strictEqual(typeof config.downloadFolder, 'string');
     assert.strictEqual(config.enableWebDashboard, true);
@@ -44,6 +45,14 @@ describe('ConfigManager Tests', () => {
     assert.strictEqual(typeof config.fileTemplate, 'string');
     assert.strictEqual(config.autoOpenWebBrowser, true);
     assert.strictEqual(config.dateFilterMode, 'TODAY');
+    assert.strictEqual(config.hoverVideoPreview, true);
+  });
+
+  test('StorageManager should handle folder size calculation cleanly', () => {
+    const downloadFolder = path.resolve(process.cwd(), 'downloads');
+    const size = StorageManager.getFolderSize(downloadFolder);
+    assert.strictEqual(typeof size, 'number');
+    assert.strictEqual(size >= 0, true);
   });
 });
 

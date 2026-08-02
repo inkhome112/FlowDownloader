@@ -8,6 +8,7 @@ import { ConfigManager } from '../config/ConfigManager';
 import { FileUtils } from '../utils/FileUtils';
 import { TemplateEngine } from '../utils/TemplateEngine';
 import { MediaProcessor } from './MediaProcessor';
+import { StorageManager } from './StorageManager';
 import { Notifier } from '../utils/Notifier';
 import logger from '../logger/Logger';
 
@@ -27,6 +28,10 @@ export class VideoDownloader {
     let failed = 0;
 
     const activeConfig = ConfigManager.getInstance().getConfig();
+
+    // Storage Quota Auto-Archiving Check
+    StorageManager.checkAndCleanup(activeConfig);
+
     const dateFilterMode = activeConfig.dateFilterMode || 'TODAY';
     const specificDate = activeConfig.specificDate;
     const todayStr = new Date().toISOString().slice(0, 10);
