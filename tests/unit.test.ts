@@ -51,18 +51,22 @@ describe('DatabaseManager & WebServer Tests', () => {
   test('DatabaseManager should save records with thumbnail_path and handle WebServer APIs', async () => {
     const db = DatabaseManager.getInstance();
 
+    const dummyThumb = path.resolve(process.cwd(), 'downloads', 'thumbnails', 'thumb_v2-test-id.jpg');
+    FileUtils.ensureDirectory(path.dirname(dummyThumb));
+    fs.writeFileSync(dummyThumb, Buffer.from('fake-image-data'));
+
     db.savePendingVideo('v2-test-id', 'A futuristic hovercar in neon rain');
     db.markCompleted('v2-test-id', {
       filename: 'v2-test-id.mp4',
       filepath: '/tmp/v2-test-id.mp4',
       filesize: 2048576,
       checksum: 'abc123hash',
-      thumbnail_path: '/tmp/thumb_v2-test-id.jpg',
+      thumbnail_path: dummyThumb,
     });
 
     const record = db.getVideo('v2-test-id');
     assert.strictEqual(record?.id, 'v2-test-id');
-    assert.strictEqual(record?.thumbnail_path, '/tmp/thumb_v2-test-id.jpg');
+    assert.strictEqual(record?.thumbnail_path, dummyThumb);
 
     const stats = db.getStats();
     assert.strictEqual(stats.completed >= 1, true);
@@ -77,6 +81,11 @@ describe('DatabaseManager & WebServer Tests', () => {
     assert.strictEqual(typeof statsRes.total, 'number');
     assert.strictEqual(statsRes.completed >= 1, true);
 
+    const thumbRes = await fetch('http://127.0.0.1:3099/api/thumbnail/v2-test-id');
+    assert.strictEqual(thumbRes.status, 200);
+    assert.strictEqual(thumbRes.headers.get('content-type'), 'image/jpeg');
+
     await server.stop();
+    if (fs.existsSync(dummyThumb)) fs.unlinkSync(dummyThumb);
   });
 });

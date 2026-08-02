@@ -1,20 +1,21 @@
 {
-  "flowUrl": "https://labs.google/fx/tools/flow",
-  "downloadFolder": "d:\\FlowDownloader\\downloads",
-  "pollIntervalMs": 15000,
+  "flowUrl": "https://labs.google/flow",
+  "downloadFolder": "D:\\FlowDownloader\\downloads",
+  "pollIntervalMs": 30000,
   "browserStrategy": "auto",
   "chromeExecutablePath": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
   "cdpPort": 9222,
-  "userDataDir": "d:\\FlowDownloader\\user_data",
+  "userDataDir": "D:\\FlowDownloader\\user_data",
   "headless": false,
   "maxRetries": 3,
   "autoScrollOnPoll": true,
   "enableWebDashboard": true,
   "webPort": 3000,
   "enableDesktopNotifications": true,
-  "fileTemplate": "{date}/{prompt_slug}_{id}.{ext}",
+  "fileTemplate": "{prompt_slug}_{id}.{ext}",
   "generateThumbnails": true,
   "autoOpenWebBrowser": true,
   "dateFilterMode": "TODAY",
-  "specificDate": ""
+  "specificDate": "",
+  "retryCount": 3
 }

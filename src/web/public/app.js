@@ -105,6 +105,7 @@ document.addEventListener('DOMContentLoaded', () => {
     videoGrid.innerHTML = records.map(rec => `
       <div class="video-card">
         <div class="video-thumb" onclick="openModal('${rec.id}', '${escapeHtml(rec.prompt)}', '${rec.download_status}')">
+          <img src="/api/thumbnail/${rec.id}" alt="${escapeHtml(rec.prompt)}" loading="lazy" onerror="this.style.display='none'">
           <div class="play-overlay">▶</div>
         </div>
         <div class="card-body">

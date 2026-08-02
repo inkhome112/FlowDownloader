@@ -4,6 +4,8 @@ import path from 'path';
 import fs from 'fs';
 import { ConfigManager } from '../config/ConfigManager';
 import { DatabaseManager } from '../storage/Database';
+import { MediaProcessor } from '../downloader/MediaProcessor';
+import { BackfillThumbnails } from '../utils/BackfillThumbnails';
 import logger from '../logger/Logger';
 
 export class WebServer {
@@ -68,6 +70,45 @@ export class WebServer {
         }
         console.error('API VIDEOS ERROR:', err);
         res.status(500).json({ error: (err as Error).message });
+      }
+    });
+
+    // GET /api/thumbnail/:id - Serve video thumbnail image
+    this.app.get('/api/thumbnail/:id', (req: Request, res: Response) => {
+      try {
+        const videoId = String(req.params.id);
+        const db = this.getDb();
+        const record = db.getVideo(videoId);
+        if (!record) {
+          return res.status(404).send('Not found');
+        }
+
+        let thumbPath = record.thumbnail_path;
+        if ((!thumbPath || !fs.existsSync(thumbPath)) && record.filepath && fs.existsSync(record.filepath)) {
+          const config = configManager.getConfig();
+          const thumbDir = path.join(config.downloadFolder, 'thumbnails');
+          thumbPath = MediaProcessor.generateThumbnail(record.filepath, thumbDir, record.id);
+          if (thumbPath) {
+            db.markCompleted(record.id, {
+              filename: record.filename || `${record.id}.mp4`,
+              filepath: record.filepath,
+              filesize: record.filesize || 0,
+              checksum: record.checksum || '',
+              thumbnail_path: thumbPath,
+            });
+          }
+        }
+
+        if (thumbPath && fs.existsSync(thumbPath)) {
+          res.setHeader('Content-Type', 'image/jpeg');
+          res.setHeader('Cache-Control', 'public, max-age=86400');
+          return fs.createReadStream(thumbPath).pipe(res);
+        }
+
+        return res.status(404).send('Thumbnail unavailable');
+      } catch (err) {
+        console.error('API THUMBNAIL ERROR:', err);
+        return res.status(500).send('Internal Server Error');
       }
     });
 
@@ -137,6 +178,7 @@ export class WebServer {
 
   public start(): Promise<void> {
     return new Promise((resolve) => {
+      BackfillThumbnails.run();
       this.server = this.app.listen(this.port, () => {
         logger.info(`Web GUI Dashboard listening at http://localhost:${this.port}`);
         resolve();
