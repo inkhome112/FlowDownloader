@@ -1,11 +1,11 @@
 {
   "flowUrl": "https://labs.google/fx/tools/flow",
-  "downloadFolder": "d:\\FlowDownloader\\downloads",
+  "downloadFolder": "D:\\Antigravity Project\\FlowDownloader\\downloads",
   "pollIntervalMs": 15000,
   "browserStrategy": "auto",
   "chromeExecutablePath": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
   "cdpPort": 9222,
-  "userDataDir": "d:\\FlowDownloader\\user_data",
+  "userDataDir": "D:\\Antigravity Project\\FlowDownloader\\user_data",
   "headless": false,
   "maxRetries": 3,
   "autoScrollOnPoll": true,
@@ -17,8 +17,8 @@
   "autoOpenWebBrowser": true,
   "dateFilterMode": "TODAY",
   "specificDate": "",
-  "enableAutoArchiving": false,
-  "maxStorageGb": 50,
-  "autoArchiveDays": 30,
+  "enableAutoArchiving": true,
+  "maxStorageGb": 5,
+  "autoArchiveDays": 5,
   "hoverVideoPreview": true
 }
