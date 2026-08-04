@@ -183,7 +183,7 @@ export class DatabaseManager {
     };
   }
 
-  public getAllRecords(search?: string, statusFilter?: string): VideoRecord[] {
+  public getAllRecords(search?: string, statusFilter?: string, dateFilterMode?: string, specificDate?: string): VideoRecord[] {
     const db = this.getDb();
     let sql = 'SELECT * FROM videos WHERE 1=1';
     const params: any[] = [];
@@ -197,6 +197,15 @@ export class DatabaseManager {
     if (statusFilter && statusFilter !== 'ALL') {
       sql += ' AND download_status = ?';
       params.push(statusFilter);
+    }
+
+    const todayStr = new Date().toISOString().slice(0, 10);
+    if (dateFilterMode === 'TODAY') {
+      sql += ' AND (download_date LIKE ? OR (download_date IS NULL AND created_at LIKE ?))';
+      params.push(`${todayStr}%`, `${todayStr}%`);
+    } else if (dateFilterMode === 'SPECIFIC' && specificDate) {
+      sql += ' AND (download_date LIKE ? OR (download_date IS NULL AND created_at LIKE ?))';
+      params.push(`${specificDate}%`, `${specificDate}%`);
     }
 
     sql += ' ORDER BY created_at DESC';

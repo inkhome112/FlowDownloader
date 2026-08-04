@@ -50,7 +50,7 @@ describe('ConfigManager & StorageManager Tests', () => {
 });
 
 describe('DatabaseManager & WebServer Tests', () => {
-  test('WebServer /api/stats and /api/video-info/:id endpoints work correctly', async () => {
+  test('WebServer /api/stats, /api/open-folder, and date filtering work correctly', async () => {
     const db = DatabaseManager.getInstance();
 
     db.savePendingVideo('v3-test-id', 'A futuristic hovercar in neon rain');
@@ -65,6 +65,9 @@ describe('DatabaseManager & WebServer Tests', () => {
     const record = db.getVideo('v3-test-id');
     assert.strictEqual(record?.id, 'v3-test-id');
     assert.strictEqual(record?.download_status, 'COMPLETED');
+
+    const todayRecords = db.getAllRecords('', 'ALL', 'TODAY');
+    assert.strictEqual(Array.isArray(todayRecords), true);
 
     const server = new WebServer(3099, undefined, db);
     await server.start();

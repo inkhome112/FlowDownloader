@@ -10,10 +10,14 @@ document.addEventListener('DOMContentLoaded', () => {
   const searchInput    = document.getElementById('search-input');
   const statusFilter   = document.getElementById('status-filter');
   const triggerSyncBtn = document.getElementById('trigger-sync-btn');
+  const openFolderBtn  = document.getElementById('open-folder-btn');
 
   const dateFilterMode     = document.getElementById('date-filter-mode');
   const specificDateInput  = document.getElementById('specific-date-input');
   const applyDateFilterBtn = document.getElementById('apply-date-filter-btn');
+
+  const downloadFolderInput = document.getElementById('download-folder-input');
+  const saveFolderBtn       = document.getElementById('save-folder-btn');
 
   const enableArchivingChk   = document.getElementById('enable-archiving-chk');
   const maxStorageGbInput    = document.getElementById('max-storage-gb');
@@ -31,6 +35,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const cfg = await fetch('/api/config').then(r => r.json());
       if (cfg.dateFilterMode)   dateFilterMode.value = cfg.dateFilterMode;
       if (cfg.specificDate)     specificDateInput.value = cfg.specificDate;
+      if (cfg.downloadFolder)   downloadFolderInput.value = cfg.downloadFolder;
       if (cfg.enableAutoArchiving !== undefined) enableArchivingChk.checked = Boolean(cfg.enableAutoArchiving);
       if (cfg.maxStorageGb)     maxStorageGbInput.value  = cfg.maxStorageGb;
       if (cfg.autoArchiveDays)  autoArchiveDaysInput.value = cfg.autoArchiveDays;
@@ -47,8 +52,30 @@ document.addEventListener('DOMContentLoaded', () => {
     applyDateFilterBtn.disabled = true; applyDateFilterBtn.textContent = 'Saving…';
     try {
       await postConfig({ dateFilterMode: dateFilterMode.value, specificDate: specificDateInput.value || '' });
-      showToast('Date filter saved ✓');
+      await fetchVideos();
+      showToast('Date filter applied ✓');
     } finally { applyDateFilterBtn.disabled = false; applyDateFilterBtn.textContent = 'Apply Filter'; }
+  });
+
+  saveFolderBtn.addEventListener('click', async () => {
+    const newPath = downloadFolderInput.value.trim();
+    if (!newPath) { showToast('Please enter a valid directory path.'); return; }
+    saveFolderBtn.disabled = true; saveFolderBtn.textContent = 'Saving…';
+    try {
+      await postConfig({ downloadFolder: newPath });
+      showToast('Save directory updated ✓');
+    } finally { saveFolderBtn.disabled = false; saveFolderBtn.textContent = 'Save Directory'; }
+  });
+
+  openFolderBtn.addEventListener('click', async () => {
+    try {
+      const res = await fetch('/api/open-folder', { method: 'POST' }).then(r => r.json());
+      if (res.success) {
+        showToast('Opened download folder in File Explorer 📁');
+      } else {
+        showToast('Failed to open download folder.');
+      }
+    } catch (e) { showToast('Failed to open download folder.'); }
   });
 
   saveStorageBtn.addEventListener('click', async () => {
@@ -60,7 +87,7 @@ document.addEventListener('DOMContentLoaded', () => {
         autoArchiveDays: parseInt(autoArchiveDaysInput.value, 10) || 30,
       });
       showToast('Storage settings saved ✓');
-    } finally { saveStorageBtn.disabled = false; saveStorageBtn.textContent = 'Save'; }
+    } finally { saveStorageBtn.disabled = false; saveStorageBtn.textContent = 'Save Quota'; }
   });
 
   async function postConfig(payload) {
@@ -83,7 +110,9 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       const search = encodeURIComponent(searchInput.value || '');
       const status = encodeURIComponent(statusFilter.value || 'ALL');
-      const records = await fetch(`/api/videos?search=${search}&status=${status}`).then(r => r.json());
+      const mode   = encodeURIComponent(dateFilterMode.value || 'TODAY');
+      const spec   = encodeURIComponent(specificDateInput.value || '');
+      const records = await fetch(`/api/videos?search=${search}&status=${status}&dateFilterMode=${mode}&specificDate=${spec}`).then(r => r.json());
       renderVideos(records);
     } catch (e) { console.error('fetchVideos:', e); }
   }
@@ -105,9 +134,6 @@ document.addEventListener('DOMContentLoaded', () => {
       const sizeMb      = rec.filesize ? (rec.filesize / 1048576).toFixed(2) + ' MB' : '—';
       const safeId      = rec.id;
 
-      // We always render a <video> element. For completed videos the browser
-      // decodes a thumbnail from the first frame (#t=0.5) automatically.
-      // For non-completed we show a placeholder icon instead.
       const thumbHtml = isCompleted
         ? `<video class="card-video"
                   src="/api/stream/${safeId}#t=0.5"
@@ -175,9 +201,9 @@ document.addEventListener('DOMContentLoaded', () => {
     triggerSyncBtn.disabled = true;
     triggerSyncBtn.textContent = 'Syncing…';
     try {
-      await fetch('/api/trigger', { method: 'POST' });
+      const res = await fetch('/api/trigger', { method: 'POST' }).then(r => r.json());
       await Promise.all([fetchStats(), fetchVideos()]);
-      showToast('Sync triggered! ⚡');
+      showToast(res.message || 'Sync cycle completed! ⚡');
     } catch { showToast('Sync failed.'); }
     finally {
       triggerSyncBtn.disabled = false;

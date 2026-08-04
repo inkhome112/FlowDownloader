@@ -2,8 +2,10 @@ import express, { Request, Response } from 'express';
 import http from 'http';
 import path from 'path';
 import fs from 'fs';
+import { exec } from 'child_process';
 import { ConfigManager } from '../config/ConfigManager';
 import { DatabaseManager } from '../storage/Database';
+import { FileUtils } from '../utils/FileUtils';
 import logger from '../logger/Logger';
 
 const BUILD_TS = Date.now(); // unique per server start — busts browser cache
@@ -14,6 +16,7 @@ export class WebServer {
   private port: number;
   private onTriggerSync?: () => Promise<void>;
   private dbManager?: DatabaseManager;
+  private isSyncing: boolean = false;
 
   constructor(port: number = 3000, onTriggerSync?: () => Promise<void>, dbManager?: DatabaseManager) {
     this.port = port;
@@ -32,14 +35,12 @@ export class WebServer {
     this.app.use(express.json());
 
     // Serve index.html with live cache-busting version injected into asset URLs.
-    // This guarantees the browser always loads the latest app.js and style.css.
     this.app.get('/', (_req: Request, res: Response) => {
       const indexPath = path.resolve(__dirname, 'public', 'index.html');
       if (!fs.existsSync(indexPath)) {
         return res.status(404).send('Dashboard not found.');
       }
       let html = fs.readFileSync(indexPath, 'utf-8');
-      // Inject build timestamp so each server restart = fresh assets
       html = html.replace(/\?v=[\w.]+/g, `?v=${BUILD_TS}`);
       res.setHeader('Content-Type', 'text/html');
       res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
@@ -50,7 +51,6 @@ export class WebServer {
 
     const publicDir = path.resolve(__dirname, 'public');
     if (fs.existsSync(publicDir)) {
-      // Static files: short cache so ?v= busting works on refresh
       this.app.use(express.static(publicDir, { etag: false, maxAge: '1s' }));
     }
   }
@@ -73,12 +73,16 @@ export class WebServer {
       try {
         const search = (req.query.search as string) || '';
         const status = (req.query.status as string) || 'ALL';
-        res.json(this.getDb().getAllRecords(search, status));
+        const dateFilterMode = (req.query.dateFilterMode as string) || undefined;
+        const specificDate = (req.query.specificDate as string) || undefined;
+        res.json(this.getDb().getAllRecords(search, status, dateFilterMode, specificDate));
       } catch (err) {
         if ((err as Error).message.includes('not open')) {
           const search = (req.query.search as string) || '';
           const status = (req.query.status as string) || 'ALL';
-          return res.json(DatabaseManager.getInstance().getAllRecords(search, status));
+          const dateFilterMode = (req.query.dateFilterMode as string) || undefined;
+          const specificDate = (req.query.specificDate as string) || undefined;
+          return res.json(DatabaseManager.getInstance().getAllRecords(search, status, dateFilterMode, specificDate));
         }
         res.status(500).json({ error: (err as Error).message });
       }
@@ -145,16 +149,46 @@ export class WebServer {
     });
 
     this.app.post('/api/config', (req: Request, res: Response) => {
-      res.json(configManager.updateConfig(req.body));
+      const updated = configManager.updateConfig(req.body);
+      if (req.body.downloadFolder) {
+        FileUtils.ensureDirectory(req.body.downloadFolder);
+      }
+      res.json(updated);
     });
 
-    // POST /api/trigger
-    this.app.post('/api/trigger', async (_req: Request, res: Response) => {
-      if (this.onTriggerSync) {
-        this.onTriggerSync().catch(() => {});
-        return res.json({ success: true, message: 'Sync cycle triggered.' });
+    // POST /api/open-folder - Launch Windows File Explorer at download folder
+    this.app.post('/api/open-folder', (_req: Request, res: Response) => {
+      try {
+        const downloadFolder = configManager.getConfig().downloadFolder;
+        FileUtils.ensureDirectory(downloadFolder);
+        exec(`explorer.exe "${downloadFolder}"`);
+        logger.info(`Opened download folder in Windows Explorer: ${downloadFolder}`);
+        res.json({ success: true, folder: downloadFolder });
+      } catch (err) {
+        res.status(500).json({ success: false, error: (err as Error).message });
       }
-      res.json({ success: false, message: 'Sync trigger unavailable.' });
+    });
+
+    // POST /api/trigger - Await scan cycle trigger
+    this.app.post('/api/trigger', async (_req: Request, res: Response) => {
+      if (!this.onTriggerSync) {
+        return res.json({ success: false, message: 'Sync trigger unavailable.' });
+      }
+      if (this.isSyncing) {
+        return res.json({ success: false, message: 'Sync cycle already in progress.' });
+      }
+
+      this.isSyncing = true;
+      try {
+        logger.info('Manual Trigger Sync initiated from Web GUI...');
+        await this.onTriggerSync();
+        res.json({ success: true, message: 'Sync cycle finished successfully!' });
+      } catch (err) {
+        logger.error(`Manual Trigger Sync error: ${(err as Error).message}`);
+        res.status(500).json({ success: false, message: `Sync failed: ${(err as Error).message}` });
+      } finally {
+        this.isSyncing = false;
+      }
     });
   }
 

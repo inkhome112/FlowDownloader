@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>FlowDownloader Dashboard</title>
   <!-- Cache-busted assets - bump version to force fresh load -->
-  <link rel="stylesheet" href="style.css?v=1.2.0">
+  <link rel="stylesheet" href="style.css?v=1.3.0">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -17,9 +17,12 @@
       <div class="logo">
         <span class="icon">🎬</span>
         <h1>FlowDownloader</h1>
-        <span class="badge">v1.2</span>
+        <span class="badge">v1.3</span>
       </div>
       <div class="actions">
+        <button id="open-folder-btn" class="btn btn-secondary">
+          <span class="btn-icon">📁</span> Open Download Folder
+        </button>
         <button id="trigger-sync-btn" class="btn btn-primary">
           <span class="btn-icon">⚡</span> Trigger Sync
         </button>
@@ -53,15 +56,24 @@
 
         <!-- Date Filter Row -->
         <div class="settings-row">
-          <div class="settings-row-label">📅 Download Filter</div>
+          <div class="settings-row-label">📅 Download Date Filter</div>
           <div class="settings-row-controls">
             <select id="date-filter-mode">
-              <option value="TODAY">Generated Today Only</option>
+              <option value="TODAY">Downloaded Today Only</option>
               <option value="ALL">All Time (No Filter)</option>
-              <option value="SPECIFIC">Specific Date...</option>
+              <option value="SPECIFIC">Downloaded on Specific Date...</option>
             </select>
             <input type="date" id="specific-date-input" class="hidden">
             <button id="apply-date-filter-btn" class="btn btn-secondary btn-sm">Apply Filter</button>
+          </div>
+        </div>
+
+        <!-- Download Directory Path Row -->
+        <div class="settings-row">
+          <div class="settings-row-label">📥 Save Directory</div>
+          <div class="settings-row-controls" style="flex: 1;">
+            <input type="text" id="download-folder-input" class="settings-path-input" placeholder="e.g. D:\Downloads\Flow">
+            <button id="save-folder-btn" class="btn btn-secondary btn-sm">Save Directory</button>
           </div>
         </div>
 
@@ -79,7 +91,7 @@
             <span class="settings-sep">Retention:</span>
             <input type="number" id="auto-archive-days" min="1" max="365" class="settings-number-input">
             <span class="settings-unit">days</span>
-            <button id="save-storage-btn" class="btn btn-secondary btn-sm">Save</button>
+            <button id="save-storage-btn" class="btn btn-secondary btn-sm">Save Quota</button>
           </div>
         </div>
 
@@ -119,6 +131,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=1.2.0"></script>
+  <script src="app.js?v=1.3.0"></script>
 </body>
 </html>
