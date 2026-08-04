@@ -169,6 +169,24 @@ export class WebServer {
       }
     });
 
+    // POST /api/browse-folder - Open Windows Folder Browser Dialog
+    this.app.post('/api/browse-folder', (_req: Request, res: Response) => {
+      const psCommand = `powershell -Command "[System.Reflection.Assembly]::LoadWithPartialName('System.windows.forms') | Out-Null; $f = New-Object System.Windows.Forms.FolderBrowserDialog; $f.Description = 'Select FlowDownloader Download Directory'; if ($f.ShowDialog() -eq 'OK') { Write-Output $f.SelectedPath }"`;
+      
+      exec(psCommand, (error, stdout) => {
+        if (error) {
+          logger.error(`Folder browser dialog error: ${error.message}`);
+          return res.json({ success: false, error: error.message });
+        }
+        const selectedPath = stdout.trim();
+        if (selectedPath) {
+          logger.info(`Folder browser selected directory: ${selectedPath}`);
+          return res.json({ success: true, folderPath: selectedPath });
+        }
+        return res.json({ success: false, cancelled: true });
+      });
+    });
+
     // POST /api/trigger - Await scan cycle trigger
     this.app.post('/api/trigger', async (_req: Request, res: Response) => {
       if (!this.onTriggerSync) {

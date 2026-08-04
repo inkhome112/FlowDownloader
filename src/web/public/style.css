@@ -154,6 +154,21 @@ body {
   outline: none;
   font-size: 0.875rem;
   font-family: var(--font);
+  cursor: pointer;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(0.9) sepia(1) saturate(5) hue-rotate(180deg);
+  cursor: pointer;
+  opacity: 0.95;
+  padding: 0.15rem;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+  background: rgba(59, 130, 246, 0.3);
 }
 
 .settings-number-input {

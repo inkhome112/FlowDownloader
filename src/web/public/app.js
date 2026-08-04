@@ -17,6 +17,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const applyDateFilterBtn = document.getElementById('apply-date-filter-btn');
 
   const downloadFolderInput = document.getElementById('download-folder-input');
+  const browseFolderBtn     = document.getElementById('browse-folder-btn');
   const saveFolderBtn       = document.getElementById('save-folder-btn');
 
   const enableArchivingChk   = document.getElementById('enable-archiving-chk');
@@ -44,9 +45,21 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function toggleSpecificDate() {
-    specificDateInput.classList.toggle('hidden', dateFilterMode.value !== 'SPECIFIC');
+    const isSpecific = dateFilterMode.value === 'SPECIFIC';
+    specificDateInput.classList.toggle('hidden', !isSpecific);
+    if (isSpecific && !specificDateInput.value) {
+      specificDateInput.value = new Date().toISOString().slice(0, 10);
+    }
   }
   dateFilterMode.addEventListener('change', toggleSpecificDate);
+
+  specificDateInput.addEventListener('click', () => {
+    try {
+      if (typeof specificDateInput.showPicker === 'function') {
+        specificDateInput.showPicker();
+      }
+    } catch (e) {}
+  });
 
   applyDateFilterBtn.addEventListener('click', async () => {
     applyDateFilterBtn.disabled = true; applyDateFilterBtn.textContent = 'Saving…';
@@ -56,6 +69,27 @@ document.addEventListener('DOMContentLoaded', () => {
       showToast('Date filter applied ✓');
     } finally { applyDateFilterBtn.disabled = false; applyDateFilterBtn.textContent = 'Apply Filter'; }
   });
+
+  if (browseFolderBtn) {
+    browseFolderBtn.addEventListener('click', async () => {
+      try {
+        browseFolderBtn.disabled = true;
+        browseFolderBtn.innerHTML = '<span class="btn-icon">📂</span> Browsing...';
+        const res = await fetch('/api/browse-folder', { method: 'POST' }).then(r => r.json());
+        if (res.success && res.folderPath) {
+          downloadFolderInput.value = res.folderPath;
+          showToast('Folder selected ✓ Click Save Directory to save.');
+        } else if (res.cancelled) {
+          showToast('Folder selection cancelled.');
+        }
+      } catch (e) {
+        showToast('Failed to open folder picker.');
+      } finally {
+        browseFolderBtn.disabled = false;
+        browseFolderBtn.innerHTML = '<span class="btn-icon">📂</span> Browse...';
+      }
+    });
+  }
 
   saveFolderBtn.addEventListener('click', async () => {
     const newPath = downloadFolderInput.value.trim();
