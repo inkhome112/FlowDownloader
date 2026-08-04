@@ -1,21 +1,42 @@
 # Rollback Guide for FlowDownloader
 
-A restore point tag `v1.0.0-restorepoint` has been created in Git before starting the Phase 1-3 upgrades.
+This document tracks all official restore point tags created in Git so you can easily revert to any working milestone version.
 
-If you ever want to revert the codebase back to the initial working v1.0.0 core version, run the following commands in PowerShell or Command Prompt:
+---
+
+## Restore Points List
+
+| Tag Name | Release Date | Description |
+| :--- | :--- | :--- |
+| **`v1.2.0-restorepoint`** | **2026-08-04** | **Stable v1.2 Release** (Includes Web GUI Dashboard, Date Filtering, Native Video Frame Thumbnails, Hover Video Preview, Storage Quota Engine, Single-Tab Launcher). |
+| `v1.0.0-restorepoint` | 2026-08-02 | Initial v1.0.0 Core Restore Point. |
+
+---
+
+## How to Rollback to `v1.2.0-restorepoint`
+
+If you ever want to revert the codebase back to this stable **v1.2.0** restore point, open Command Prompt or PowerShell in your project folder and run:
 
 ```powershell
-# 1. Reset working directory to the restore point tag
-git reset --hard v1.0.0-restorepoint
+# 1. Discard any local modifications and reset working directory to v1.2.0-restorepoint
+git reset --hard v1.2.0-restorepoint
 
-# 2. Re-install original dependencies if needed
-npm install
-
-# 3. Rebuild TypeScript files
+# 2. Rebuild TypeScript files cleanly
 npm run build
 ```
 
-To view all available tags/restore points:
+---
+
+## How to Rollback to Initial `v1.0.0-restorepoint`
+
+```powershell
+git reset --hard v1.0.0-restorepoint
+npm run build
+```
+
+---
+
+## List All Available Restore Points
 ```powershell
 git tag -l
 ```
