@@ -20,6 +20,20 @@ export class VideoDownloader {
     this.config = config;
     this.db = DatabaseManager.getInstance();
     FileUtils.ensureDirectory(this.config.downloadFolder);
+    this.cleanupLegacyThumbnailsFolder();
+  }
+
+  private cleanupLegacyThumbnailsFolder(): void {
+    try {
+      const activeConfig = ConfigManager.getInstance().getConfig();
+      const legacyThumbDir = path.join(activeConfig.downloadFolder, 'thumbnails');
+      if (fs.existsSync(legacyThumbDir)) {
+        fs.rmSync(legacyThumbDir, { recursive: true, force: true });
+        logger.info(`Cleaned up redundant thumbnails folder: ${legacyThumbDir}`);
+      }
+    } catch (err) {
+      // Ignore cleanup errors
+    }
   }
 
   public async processItems(page: Page, items: DetectedFlowItem[]): Promise<{ downloaded: number; skipped: number; failed: number }> {
@@ -28,6 +42,7 @@ export class VideoDownloader {
     let failed = 0;
 
     const activeConfig = ConfigManager.getInstance().getConfig();
+    this.cleanupLegacyThumbnailsFolder();
 
     // Storage Quota Auto-Archiving Check
     StorageManager.checkAndCleanup(activeConfig);
@@ -84,7 +99,7 @@ export class VideoDownloader {
           const result = await this.downloadVideoFile(page, item);
           const checksum = await FileUtils.calculateSHA256(result.filepath);
 
-          // Post-processing: Embed metadata & generate thumbnail if enabled
+          // Post-processing: Embed metadata into MP4
           MediaProcessor.embedMetadata(result.filepath, item.prompt, item.id);
           
           let thumbnailPath: string | undefined = undefined;

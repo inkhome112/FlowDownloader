@@ -36,7 +36,7 @@ export class ConfigManager {
       webPort: 3000,
       enableDesktopNotifications: true,
       fileTemplate: '{date}/{prompt_slug}_{id}.{ext}',
-      generateThumbnails: true,
+      generateThumbnails: false,
       autoOpenWebBrowser: true,
       dateFilterMode: 'TODAY',
       specificDate: '',
