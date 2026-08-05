@@ -65,7 +65,7 @@ document.addEventListener('DOMContentLoaded', () => {
     applyDateFilterBtn.disabled = true; applyDateFilterBtn.textContent = 'Saving…';
     try {
       await postConfig({ dateFilterMode: dateFilterMode.value, specificDate: specificDateInput.value || '' });
-      await fetchVideos();
+      await Promise.all([fetchStats(), fetchVideos()]);
       showToast('Date filter applied ✓');
     } finally { applyDateFilterBtn.disabled = false; applyDateFilterBtn.textContent = 'Apply Filter'; }
   });
@@ -131,7 +131,9 @@ document.addEventListener('DOMContentLoaded', () => {
   // ── Stats ─────────────────────────────────────────────────────────────────
   async function fetchStats() {
     try {
-      const d = await fetch('/api/stats').then(r => r.json());
+      const mode = encodeURIComponent(dateFilterMode.value || 'TODAY');
+      const spec = encodeURIComponent(specificDateInput.value || '');
+      const d = await fetch(`/api/stats?dateFilterMode=${mode}&specificDate=${spec}`).then(r => r.json());
       statTotal.textContent     = d.total     || 0;
       statCompleted.textContent = d.completed || 0;
       statPending.textContent   = d.pending   || 0;

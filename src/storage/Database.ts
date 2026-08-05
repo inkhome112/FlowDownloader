@@ -168,18 +168,30 @@ export class DatabaseManager {
     stmt.run(errorMessage, now, id);
   }
 
-  public getStats(): { total: number; completed: number; pending: number; failed: number } {
+  public getStats(dateFilterMode?: string, specificDate?: string): { total: number; completed: number; pending: number; failed: number } {
     const db = this.getDb();
-    const totalStmt = db.prepare('SELECT COUNT(*) as count FROM videos');
-    const completedStmt = db.prepare("SELECT COUNT(*) as count FROM videos WHERE download_status = 'COMPLETED'");
-    const pendingStmt = db.prepare("SELECT COUNT(*) as count FROM videos WHERE download_status = 'PENDING'");
-    const failedStmt = db.prepare("SELECT COUNT(*) as count FROM videos WHERE download_status = 'FAILED'");
+    let baseSql = 'WHERE 1=1';
+    const params: any[] = [];
+
+    const todayStr = new Date().toISOString().slice(0, 10);
+    if (dateFilterMode === 'TODAY') {
+      baseSql += ' AND (download_date LIKE ? OR (download_date IS NULL AND created_at LIKE ?))';
+      params.push(`${todayStr}%`, `${todayStr}%`);
+    } else if (dateFilterMode === 'SPECIFIC' && specificDate) {
+      baseSql += ' AND (download_date LIKE ? OR (download_date IS NULL AND created_at LIKE ?))';
+      params.push(`${specificDate}%`, `${specificDate}%`);
+    }
+
+    const totalStmt = db.prepare(`SELECT COUNT(*) as count FROM videos ${baseSql}`);
+    const completedStmt = db.prepare(`SELECT COUNT(*) as count FROM videos ${baseSql} AND download_status = 'COMPLETED'`);
+    const pendingStmt = db.prepare(`SELECT COUNT(*) as count FROM videos ${baseSql} AND download_status = 'PENDING'`);
+    const failedStmt = db.prepare(`SELECT COUNT(*) as count FROM videos ${baseSql} AND download_status = 'FAILED'`);
 
     return {
-      total: (totalStmt.get() as any).count,
-      completed: (completedStmt.get() as any).count,
-      pending: (pendingStmt.get() as any).count,
-      failed: (failedStmt.get() as any).count,
+      total: (totalStmt.get(...params) as any).count,
+      completed: (completedStmt.get(...params) as any).count,
+      pending: (pendingStmt.get(...params) as any).count,
+      failed: (failedStmt.get(...params) as any).count,
     };
   }
 

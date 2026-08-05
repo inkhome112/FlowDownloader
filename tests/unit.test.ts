@@ -69,11 +69,15 @@ describe('DatabaseManager & WebServer Tests', () => {
     const todayRecords = db.getAllRecords('', 'ALL', 'TODAY');
     assert.strictEqual(Array.isArray(todayRecords), true);
 
+    const todayStats = db.getStats('TODAY');
+    assert.strictEqual(typeof todayStats.total, 'number');
+    assert.strictEqual(todayStats.completed >= 1, true);
+
     const server = new WebServer(3099, undefined, db);
     await server.start();
 
-    // Stats endpoint
-    const statsRes = await fetch('http://127.0.0.1:3099/api/stats').then(r => r.json());
+    // Stats endpoint with date filter
+    const statsRes = await fetch('http://127.0.0.1:3099/api/stats?dateFilterMode=TODAY').then(r => r.json());
     assert.strictEqual(typeof statsRes.total, 'number');
     assert.strictEqual(statsRes.completed >= 1, true);
 

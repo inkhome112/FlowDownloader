@@ -59,11 +59,17 @@ export class WebServer {
     const configManager = ConfigManager.getInstance();
 
     // GET /api/stats
-    this.app.get('/api/stats', (_req: Request, res: Response) => {
+    this.app.get('/api/stats', (req: Request, res: Response) => {
       try {
-        res.json(this.getDb().getStats());
+        const dateFilterMode = (req.query.dateFilterMode as string) || undefined;
+        const specificDate = (req.query.specificDate as string) || undefined;
+        res.json(this.getDb().getStats(dateFilterMode, specificDate));
       } catch (err) {
-        if ((err as Error).message.includes('not open')) return res.json(DatabaseManager.getInstance().getStats());
+        if ((err as Error).message.includes('not open')) {
+          const dateFilterMode = (req.query.dateFilterMode as string) || undefined;
+          const specificDate = (req.query.specificDate as string) || undefined;
+          return res.json(DatabaseManager.getInstance().getStats(dateFilterMode, specificDate));
+        }
         res.status(500).json({ error: (err as Error).message });
       }
     });
