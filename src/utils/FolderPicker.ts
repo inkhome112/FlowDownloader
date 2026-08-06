@@ -1,7 +1,4 @@
-import os from 'os';
-import path from 'path';
-import fs from 'fs';
-import { execFile } from 'child_process';
+import { exec } from 'child_process';
 import logger from '../logger/Logger';
 
 const DIALOG_TIMEOUT_MS = 15000;
@@ -9,29 +6,10 @@ const DIALOG_TIMEOUT_MS = 15000;
 export class FolderPicker {
   public static openDialog(): Promise<string | null> {
     return new Promise((resolve) => {
-      // Build a temporary PowerShell script file.
-      // PowerShell must be invoked with -STA (Single-Threaded Apartment) to allow
-      // Windows Forms GUI dialogs to appear. Without -STA, FolderBrowserDialog
-      // is silently cancelled by Windows before it opens.
-      const tempPsPath = path.join(os.tmpdir(), 'flow_folder_picker.ps1');
-      const psCode = [
-        'Add-Type -AssemblyName System.Windows.Forms',
-        '$dialog = New-Object System.Windows.Forms.FolderBrowserDialog',
-        '$dialog.Description = "Select FlowDownloader Download Directory"',
-        '$dialog.ShowNewFolderButton = $true',
-        '$result = $dialog.ShowDialog()',
-        'if ($result -eq [System.Windows.Forms.DialogResult]::OK) {',
-        '  Write-Output $dialog.SelectedPath',
-        '}',
-      ].join('\r\n');
-
       let settled = false;
       const settle = (val: string | null) => {
         if (!settled) {
           settled = true;
-          try {
-            if (fs.existsSync(tempPsPath)) fs.unlinkSync(tempPsPath);
-          } catch (_) { /* ignore cleanup */ }
           resolve(val);
         }
       };
@@ -42,34 +20,36 @@ export class FolderPicker {
         settle(null);
       }, DIALOG_TIMEOUT_MS);
 
-      try {
-        fs.writeFileSync(tempPsPath, psCode, 'utf-8');
+      // Use the same inline -Command approach that worked in v1.3.
+      // The inline -Command string runs in a COM STA context on Windows,
+      // which allows Windows Forms dialogs to render correctly.
+      const psCommand =
+        `powershell -Command "` +
+        `[System.Reflection.Assembly]::LoadWithPartialName('System.windows.forms') | Out-Null; ` +
+        `$f = New-Object System.Windows.Forms.FolderBrowserDialog; ` +
+        `$f.Description = 'Select FlowDownloader Download Directory'; ` +
+        `if ($f.ShowDialog() -eq 'OK') { Write-Output $f.SelectedPath }` +
+        `"`;
 
-        // -STA is the critical flag — it enables Windows Forms GUI thread model
-        execFile(
-          'powershell.exe',
-          ['-NoProfile', '-STA', '-ExecutionPolicy', 'Bypass', '-File', tempPsPath],
-          { timeout: DIALOG_TIMEOUT_MS + 2000 },
-          (err, stdout, stderr) => {
-            clearTimeout(timer);
-            if (err) {
-              logger.error(`FolderPicker PowerShell error: ${err.message}`);
-              if (stderr) logger.error(`FolderPicker stderr: ${stderr}`);
-              return settle(null);
-            }
-            const selectedPath = stdout.trim();
-            if (selectedPath) {
-              logger.info(`FolderPicker selected: ${selectedPath}`);
-              return settle(selectedPath);
-            }
-            settle(null);
-          }
-        );
-      } catch (err) {
+      const child = exec(psCommand, { timeout: DIALOG_TIMEOUT_MS + 2000 }, (err, stdout) => {
         clearTimeout(timer);
-        logger.error(`FolderPicker failed to write PS1 script: ${(err as Error).message}`);
+        if (err) {
+          logger.error(`FolderPicker error: ${err.message}`);
+          return settle(null);
+        }
+        const selectedPath = stdout.trim();
+        if (selectedPath) {
+          logger.info(`FolderPicker selected: ${selectedPath}`);
+          return settle(selectedPath);
+        }
         settle(null);
-      }
+      });
+
+      child.on('error', (err) => {
+        clearTimeout(timer);
+        logger.error(`FolderPicker exec error: ${err.message}`);
+        settle(null);
+      });
     });
   }
 }
