@@ -2,7 +2,7 @@ import fs from 'fs';
 import { exec } from 'child_process';
 import logger from '../logger/Logger';
 
-const DIALOG_TIMEOUT_MS = 15000;
+const DIALOG_TIMEOUT_MS = 3000;
 
 export class FolderPicker {
   public static openDialog(): Promise<string | null> {
@@ -15,13 +15,11 @@ export class FolderPicker {
         }
       };
 
-      // 15-second hard timeout — re-enables the Browse button even if the dialog hangs
       const timer = setTimeout(() => {
-        logger.warn('FolderPicker: dialog timed out after 15 seconds.');
+        logger.debug('FolderPicker: background dialog query timed out (using browser UI picker fallback).');
         settle(null);
       }, DIALOG_TIMEOUT_MS);
 
-      // Raw PowerShell script with stream error/progress suppression
       const rawScript = [
         '$ErrorActionPreference = "SilentlyContinue"',
         '$ProgressPreference = "SilentlyContinue"',
@@ -34,14 +32,11 @@ export class FolderPicker {
         '}',
       ].join('\r\n');
 
-      // Base64 UTF-16LE encoding prevents shell parsers from stripping variable names like $dlg
       const base64Script = Buffer.from(rawScript, 'utf16le').toString('base64');
       const psCommand = `powershell.exe -NoProfile -STA -EncodedCommand ${base64Script}`;
 
-      const child = exec(psCommand, { timeout: DIALOG_TIMEOUT_MS + 2000 }, (err, stdout, stderr) => {
+      const child = exec(psCommand, { timeout: DIALOG_TIMEOUT_MS + 1000 }, (_err, stdout) => {
         clearTimeout(timer);
-
-        // Check stdout first — if user picked a directory, return it regardless of CLIXML stderr messages
         const lines = (stdout || '').split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
         const selectedPath = lines[lines.length - 1] || '';
 
@@ -49,21 +44,11 @@ export class FolderPicker {
           logger.info(`FolderPicker selected directory: ${selectedPath}`);
           return settle(selectedPath);
         }
-
-        if (err) {
-          // Ignore harmless CLIXML stream wrapper errors if user cancelled
-          if (!stderr || !stderr.includes('CLIXML')) {
-            logger.warn(`FolderPicker non-critical notice: ${err.message}`);
-          }
-          return settle(null);
-        }
-
         settle(null);
       });
 
-      child.on('error', (err) => {
+      child.on('error', () => {
         clearTimeout(timer);
-        logger.error(`FolderPicker exec child error: ${err.message}`);
         settle(null);
       });
     });

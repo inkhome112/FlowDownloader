@@ -91,28 +91,12 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   if (browseFolderBtn) {
-    browseFolderBtn.addEventListener('click', async () => {
-      browseFolderBtn.disabled = true;
-      browseFolderBtn.innerHTML = '<span class="btn-icon">📂</span> Browsing...';
-      try {
-        const res = await fetch('/api/browse-folder', { method: 'POST' }).then(r => r.json());
-        if (res.success && res.folderPath) {
-          downloadFolderInput.value = res.folderPath;
-          showToast('Folder selected ✓ Click Save Directory to save.');
-        } else if (folderPickerFileInput) {
-          folderPickerFileInput.click();
-        } else {
-          showToast('No folder selected.');
-        }
-      } catch (e) {
-        if (folderPickerFileInput) {
-          folderPickerFileInput.click();
-        } else {
-          showToast('Could not open folder picker.');
-        }
-      } finally {
-        browseFolderBtn.disabled = false;
-        browseFolderBtn.innerHTML = '<span class="btn-icon">📂</span> Browse...';
+    browseFolderBtn.addEventListener('click', () => {
+      if (folderPickerFileInput) {
+        folderPickerFileInput.value = ''; // Reset selection
+        folderPickerFileInput.click();
+      } else {
+        showToast('Folder picker input missing.');
       }
     });
   }
