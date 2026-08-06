@@ -48,7 +48,7 @@ export class FolderPicker {
         // -STA is the critical flag — it enables Windows Forms GUI thread model
         execFile(
           'powershell.exe',
-          ['-NoProfile', '-NonInteractive', '-STA', '-ExecutionPolicy', 'Bypass', '-File', tempPsPath],
+          ['-NoProfile', '-STA', '-ExecutionPolicy', 'Bypass', '-File', tempPsPath],
           { timeout: DIALOG_TIMEOUT_MS + 2000 },
           (err, stdout, stderr) => {
             clearTimeout(timer);
