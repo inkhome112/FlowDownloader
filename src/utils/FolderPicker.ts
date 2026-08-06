@@ -1,3 +1,4 @@
+import fs from 'fs';
 import { exec } from 'child_process';
 import logger from '../logger/Logger';
 
@@ -20,8 +21,10 @@ export class FolderPicker {
         settle(null);
       }, DIALOG_TIMEOUT_MS);
 
-      // Raw PowerShell script for FolderBrowserDialog
+      // Raw PowerShell script with stream error/progress suppression
       const rawScript = [
+        '$ErrorActionPreference = "SilentlyContinue"',
+        '$ProgressPreference = "SilentlyContinue"',
         'Add-Type -AssemblyName System.Windows.Forms',
         '$dlg = New-Object System.Windows.Forms.FolderBrowserDialog',
         '$dlg.Description = "Select FlowDownloader Download Directory"',
@@ -37,16 +40,24 @@ export class FolderPicker {
 
       const child = exec(psCommand, { timeout: DIALOG_TIMEOUT_MS + 2000 }, (err, stdout, stderr) => {
         clearTimeout(timer);
-        if (err) {
-          logger.error(`FolderPicker execution error: ${err.message}`);
-          if (stderr) logger.error(`FolderPicker stderr: ${stderr}`);
-          return settle(null);
-        }
-        const selectedPath = stdout.trim();
-        if (selectedPath) {
+
+        // Check stdout first — if user picked a directory, return it regardless of CLIXML stderr messages
+        const lines = (stdout || '').split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+        const selectedPath = lines[lines.length - 1] || '';
+
+        if (selectedPath && fs.existsSync(selectedPath)) {
           logger.info(`FolderPicker selected directory: ${selectedPath}`);
           return settle(selectedPath);
         }
+
+        if (err) {
+          // Ignore harmless CLIXML stream wrapper errors if user cancelled
+          if (!stderr || !stderr.includes('CLIXML')) {
+            logger.warn(`FolderPicker non-critical notice: ${err.message}`);
+          }
+          return settle(null);
+        }
+
         settle(null);
       });
 
