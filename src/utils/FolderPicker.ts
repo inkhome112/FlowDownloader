@@ -20,26 +20,31 @@ export class FolderPicker {
         settle(null);
       }, DIALOG_TIMEOUT_MS);
 
-      // Use the same inline -Command approach that worked in v1.3.
-      // The inline -Command string runs in a COM STA context on Windows,
-      // which allows Windows Forms dialogs to render correctly.
-      const psCommand =
-        `powershell -Command "` +
-        `[System.Reflection.Assembly]::LoadWithPartialName('System.windows.forms') | Out-Null; ` +
-        `$f = New-Object System.Windows.Forms.FolderBrowserDialog; ` +
-        `$f.Description = 'Select FlowDownloader Download Directory'; ` +
-        `if ($f.ShowDialog() -eq 'OK') { Write-Output $f.SelectedPath }` +
-        `"`;
+      // Raw PowerShell script for FolderBrowserDialog
+      const rawScript = [
+        'Add-Type -AssemblyName System.Windows.Forms',
+        '$dlg = New-Object System.Windows.Forms.FolderBrowserDialog',
+        '$dlg.Description = "Select FlowDownloader Download Directory"',
+        '$dlg.ShowNewFolderButton = $true',
+        'if ($dlg.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {',
+        '    [Console]::WriteLine($dlg.SelectedPath)',
+        '}',
+      ].join('\r\n');
 
-      const child = exec(psCommand, { timeout: DIALOG_TIMEOUT_MS + 2000 }, (err, stdout) => {
+      // Base64 UTF-16LE encoding prevents shell parsers from stripping variable names like $dlg
+      const base64Script = Buffer.from(rawScript, 'utf16le').toString('base64');
+      const psCommand = `powershell.exe -NoProfile -STA -EncodedCommand ${base64Script}`;
+
+      const child = exec(psCommand, { timeout: DIALOG_TIMEOUT_MS + 2000 }, (err, stdout, stderr) => {
         clearTimeout(timer);
         if (err) {
-          logger.error(`FolderPicker error: ${err.message}`);
+          logger.error(`FolderPicker execution error: ${err.message}`);
+          if (stderr) logger.error(`FolderPicker stderr: ${stderr}`);
           return settle(null);
         }
         const selectedPath = stdout.trim();
         if (selectedPath) {
-          logger.info(`FolderPicker selected: ${selectedPath}`);
+          logger.info(`FolderPicker selected directory: ${selectedPath}`);
           return settle(selectedPath);
         }
         settle(null);
@@ -47,7 +52,7 @@ export class FolderPicker {
 
       child.on('error', (err) => {
         clearTimeout(timer);
-        logger.error(`FolderPicker exec error: ${err.message}`);
+        logger.error(`FolderPicker exec child error: ${err.message}`);
         settle(null);
       });
     });

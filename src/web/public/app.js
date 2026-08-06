@@ -16,9 +16,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const specificDateInput  = document.getElementById('specific-date-input');
   const applyDateFilterBtn = document.getElementById('apply-date-filter-btn');
 
-  const downloadFolderInput = document.getElementById('download-folder-input');
-  const browseFolderBtn     = document.getElementById('browse-folder-btn');
-  const saveFolderBtn       = document.getElementById('save-folder-btn');
+  const downloadFolderInput   = document.getElementById('download-folder-input');
+  const folderPickerFileInput = document.getElementById('folder-picker-file-input');
+  const browseFolderBtn       = document.getElementById('browse-folder-btn');
+  const saveFolderBtn         = document.getElementById('save-folder-btn');
 
   const enableArchivingChk   = document.getElementById('enable-archiving-chk');
   const maxStorageGbInput    = document.getElementById('max-storage-gb');
@@ -70,6 +71,25 @@ document.addEventListener('DOMContentLoaded', () => {
     } finally { applyDateFilterBtn.disabled = false; applyDateFilterBtn.textContent = 'Apply Filter'; }
   });
 
+  if (folderPickerFileInput) {
+    folderPickerFileInput.addEventListener('change', (e) => {
+      const files = e.target.files;
+      if (files && files.length > 0) {
+        const firstFile = files[0];
+        let chosenPath = firstFile.path || '';
+        if (chosenPath) {
+          chosenPath = chosenPath.substring(0, Math.max(chosenPath.lastIndexOf('\\'), chosenPath.lastIndexOf('/')));
+        } else if (firstFile.webkitRelativePath) {
+          chosenPath = firstFile.webkitRelativePath.split('/')[0];
+        }
+        if (chosenPath) {
+          downloadFolderInput.value = chosenPath;
+          showToast('Folder selected ✓ Click Save Directory to save.');
+        }
+      }
+    });
+  }
+
   if (browseFolderBtn) {
     browseFolderBtn.addEventListener('click', async () => {
       browseFolderBtn.disabled = true;
@@ -79,17 +99,17 @@ document.addEventListener('DOMContentLoaded', () => {
         if (res.success && res.folderPath) {
           downloadFolderInput.value = res.folderPath;
           showToast('Folder selected ✓ Click Save Directory to save.');
-        } else if (res.cancelled || res.timedOut) {
-          showToast('No folder selected.');
-        } else if (res.error) {
-          showToast(`Browse error: ${res.error}`);
-          console.error('Browse folder error:', res.error);
+        } else if (folderPickerFileInput) {
+          folderPickerFileInput.click();
         } else {
           showToast('No folder selected.');
         }
       } catch (e) {
-        console.error('Browse folder network error:', e);
-        showToast('Could not reach server. Is FlowDownloader running?');
+        if (folderPickerFileInput) {
+          folderPickerFileInput.click();
+        } else {
+          showToast('Could not open folder picker.');
+        }
       } finally {
         browseFolderBtn.disabled = false;
         browseFolderBtn.innerHTML = '<span class="btn-icon">📂</span> Browse...';
