@@ -72,18 +72,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (browseFolderBtn) {
     browseFolderBtn.addEventListener('click', async () => {
+      browseFolderBtn.disabled = true;
+      browseFolderBtn.innerHTML = '<span class="btn-icon">📂</span> Browsing...';
       try {
-        browseFolderBtn.disabled = true;
-        browseFolderBtn.innerHTML = '<span class="btn-icon">📂</span> Browsing...';
         const res = await fetch('/api/browse-folder', { method: 'POST' }).then(r => r.json());
         if (res.success && res.folderPath) {
           downloadFolderInput.value = res.folderPath;
           showToast('Folder selected ✓ Click Save Directory to save.');
-        } else if (res.cancelled) {
-          showToast('Folder selection cancelled.');
+        } else if (res.cancelled || res.timedOut) {
+          showToast('No folder selected.');
+        } else if (res.error) {
+          showToast(`Browse error: ${res.error}`);
+          console.error('Browse folder error:', res.error);
+        } else {
+          showToast('No folder selected.');
         }
       } catch (e) {
-        showToast('Failed to open folder picker.');
+        console.error('Browse folder network error:', e);
+        showToast('Could not reach server. Is FlowDownloader running?');
       } finally {
         browseFolderBtn.disabled = false;
         browseFolderBtn.innerHTML = '<span class="btn-icon">📂</span> Browse...';

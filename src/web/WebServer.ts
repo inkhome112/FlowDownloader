@@ -176,7 +176,7 @@ export class WebServer {
       }
     });
 
-    // POST /api/browse-folder - Open Windows Folder Browser Dialog via FolderPicker VBScript
+    // POST /api/browse-folder - Open Windows Folder Browser Dialog via FolderPicker (PowerShell -STA)
     this.app.post('/api/browse-folder', async (_req: Request, res: Response) => {
       try {
         const folderPath = await FolderPicker.openDialog();
@@ -185,6 +185,7 @@ export class WebServer {
         }
         return res.json({ success: false, cancelled: true });
       } catch (err) {
+        logger.error(`Browse folder route error: ${(err as Error).message}`);
         res.status(500).json({ success: false, error: (err as Error).message });
       }
     });
