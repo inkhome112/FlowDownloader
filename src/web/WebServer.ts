@@ -158,7 +158,6 @@ export class WebServer {
     this.app.post('/api/config', (req: Request, res: Response) => {
       const payload = { ...req.body };
       if (payload.downloadFolder) {
-        payload.downloadFolder = path.resolve(payload.downloadFolder);
         FileUtils.ensureDirectory(payload.downloadFolder);
       }
       const updated = configManager.updateConfig(payload);
@@ -168,8 +167,7 @@ export class WebServer {
     // POST /api/open-folder - Launch Windows File Explorer at download folder
     this.app.post('/api/open-folder', (_req: Request, res: Response) => {
       try {
-        const rawFolder = configManager.getConfig().downloadFolder;
-        const downloadFolder = path.resolve(rawFolder);
+        const downloadFolder = configManager.getConfig().downloadFolder;
         FileUtils.ensureDirectory(downloadFolder);
         exec(`explorer.exe "${downloadFolder}"`);
         logger.info(`Opened download folder in Windows Explorer: ${downloadFolder}`);
