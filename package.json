@@ -1,6 +1,6 @@
 {
   "name": "flowdownloader",
-  "version": "1.5.1",
+  "version": "1.5.2",
   "description": "Production-quality Windows application to automatically download completed Google Flow videos.",
   "main": "dist/index.js",
   "bin": {

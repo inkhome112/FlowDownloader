@@ -72,7 +72,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   if (folderPickerFileInput) {
-    folderPickerFileInput.addEventListener('change', (e) => {
+    folderPickerFileInput.addEventListener('change', async (e) => {
       const files = e.target.files;
       if (files && files.length > 0) {
         const firstFile = files[0];
@@ -84,7 +84,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         if (chosenPath) {
           downloadFolderInput.value = chosenPath;
-          showToast('Folder selected ✓ Click Save Directory to save.');
+          await postConfig({ downloadFolder: chosenPath });
+          showToast('Save directory updated ✓');
         }
       }
     });
@@ -135,7 +136,11 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   async function postConfig(payload) {
-    await fetch('/api/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    const res = await fetch('/api/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }).then(r => r.json());
+    if (res && res.downloadFolder) {
+      downloadFolderInput.value = res.downloadFolder;
+    }
+    return res;
   }
 
   // ── Stats ─────────────────────────────────────────────────────────────────

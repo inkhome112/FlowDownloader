@@ -156,17 +156,20 @@ export class WebServer {
     });
 
     this.app.post('/api/config', (req: Request, res: Response) => {
-      const updated = configManager.updateConfig(req.body);
-      if (req.body.downloadFolder) {
-        FileUtils.ensureDirectory(req.body.downloadFolder);
+      const payload = { ...req.body };
+      if (payload.downloadFolder) {
+        payload.downloadFolder = path.resolve(payload.downloadFolder);
+        FileUtils.ensureDirectory(payload.downloadFolder);
       }
+      const updated = configManager.updateConfig(payload);
       res.json(updated);
     });
 
     // POST /api/open-folder - Launch Windows File Explorer at download folder
     this.app.post('/api/open-folder', (_req: Request, res: Response) => {
       try {
-        const downloadFolder = configManager.getConfig().downloadFolder;
+        const rawFolder = configManager.getConfig().downloadFolder;
+        const downloadFolder = path.resolve(rawFolder);
         FileUtils.ensureDirectory(downloadFolder);
         exec(`explorer.exe "${downloadFolder}"`);
         logger.info(`Opened download folder in Windows Explorer: ${downloadFolder}`);
