@@ -48,6 +48,18 @@ export class FlowDetector {
     return true;
   }
 
+  public static isChatOrSampleItem(item: { id?: string; prompt?: string; videoUrl?: string }): boolean {
+    const rawId = (item.id || '').toLowerCase();
+    const rawPrompt = (item.prompt || '').toLowerCase();
+    const rawUrl = (item.videoUrl || '').toLowerCase();
+
+    const isGen1 = rawId === 'gen-1' || rawPrompt.includes('google flow video gen-1') || rawPrompt === 'gen-1';
+    const isSample = rawPrompt.includes('chat-preview') || rawPrompt.includes('system-demo') || rawPrompt.includes('sample-video');
+    const isChatUrl = rawUrl.includes('chat_preview') || rawUrl.includes('sample_video');
+
+    return isGen1 || isSample || isChatUrl;
+  }
+
   public static async detectItems(page: Page, autoScroll: boolean = true, flowUrl: string = 'https://labs.google/flow'): Promise<DetectedFlowItem[]> {
     // Health check via Watchdog
     const healthy = await Watchdog.isHealthy(page);
@@ -76,6 +88,12 @@ export class FlowDetector {
       const videoElements = Array.from(document.querySelectorAll('video'));
       videoElements.forEach((vidIndex, index) => {
         const vid = vidIndex as HTMLVideoElement;
+
+        // Skip videos contained inside chat bubbles, message histories, or sidebars
+        if (vid.closest('[class*="chat"], [class*="conversation"], [class*="message"], [class*="bubble"], [class*="sidebar"]')) {
+          return;
+        }
+
         const src = vid.src || (vid.querySelector('source')?.src) || '';
         const card = vid.closest('[data-generation-id], [class*="card"], [class*="item"], [class*="generation"], article, div') || vid.parentElement;
 
@@ -103,9 +121,11 @@ export class FlowDetector {
           status = 'failed';
         }
 
-        if (!id) id = `gen-${index + 1}`;
+        if (!id && src) {
+          id = `v-${index + 1}`;
+        }
 
-        if (!seenIds.has(id)) {
+        if (id && !seenIds.has(id)) {
           seenIds.add(id);
           results.push({
             id,
@@ -119,6 +139,10 @@ export class FlowDetector {
 
       const downloadLinks = Array.from(document.querySelectorAll('a[download], a[href*=".mp4"], button[aria-label*="Download"], a[aria-label*="Download"]'));
       downloadLinks.forEach((link, index) => {
+        if (link.closest('[class*="chat"], [class*="conversation"], [class*="message"], [class*="bubble"], [class*="sidebar"]')) {
+          return;
+        }
+
         const href = (link as HTMLAnchorElement).href || (link as HTMLAnchorElement).getAttribute('data-url') || '';
         const card = link.closest('[data-generation-id], [class*="card"], [class*="item"], article, div');
         let id = card?.getAttribute('data-generation-id') || card?.getAttribute('id') || '';
@@ -129,9 +153,11 @@ export class FlowDetector {
           if (match) id = match[1];
         }
 
-        if (!id) id = `dl-${index + 1}`;
+        if (!id && href) {
+          id = `dl-${index + 1}`;
+        }
 
-        if (!seenIds.has(id) && href) {
+        if (id && !seenIds.has(id) && href) {
           seenIds.add(id);
           results.push({
             id,
@@ -151,8 +177,13 @@ export class FlowDetector {
     const itemMap = new Map<string, DetectedFlowItem>();
 
     domItems.forEach((item) => {
+      if (this.isChatOrSampleItem(item)) {
+        logger.debug(`Excluding chat/sample video item ${item.id}`);
+        return;
+      }
+
       let finalId = item.id;
-      if (!finalId || finalId.startsWith('gen-') || finalId.startsWith('dl-')) {
+      if (!finalId || finalId.startsWith('v-') || finalId.startsWith('dl-')) {
         const hash = crypto
           .createHash('md5')
           .update(`${item.prompt}-${item.videoUrl || ''}`)
@@ -164,6 +195,10 @@ export class FlowDetector {
     });
 
     sniffedItems.forEach((item) => {
+      if (this.isChatOrSampleItem(item)) {
+        logger.debug(`Excluding chat/sample video item ${item.id}`);
+        return;
+      }
       if (!itemMap.has(item.id)) {
         itemMap.set(item.id, item);
       }

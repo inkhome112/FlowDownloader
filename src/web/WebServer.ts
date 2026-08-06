@@ -6,6 +6,7 @@ import { exec } from 'child_process';
 import { ConfigManager } from '../config/ConfigManager';
 import { DatabaseManager } from '../storage/Database';
 import { FileUtils } from '../utils/FileUtils';
+import { FolderPicker } from '../utils/FolderPicker';
 import logger from '../logger/Logger';
 
 const BUILD_TS = Date.now(); // unique per server start — busts browser cache
@@ -175,22 +176,17 @@ export class WebServer {
       }
     });
 
-    // POST /api/browse-folder - Open Windows Folder Browser Dialog
-    this.app.post('/api/browse-folder', (_req: Request, res: Response) => {
-      const psCommand = `powershell -Command "[System.Reflection.Assembly]::LoadWithPartialName('System.windows.forms') | Out-Null; $f = New-Object System.Windows.Forms.FolderBrowserDialog; $f.Description = 'Select FlowDownloader Download Directory'; if ($f.ShowDialog() -eq 'OK') { Write-Output $f.SelectedPath }"`;
-      
-      exec(psCommand, (error, stdout) => {
-        if (error) {
-          logger.error(`Folder browser dialog error: ${error.message}`);
-          return res.json({ success: false, error: error.message });
-        }
-        const selectedPath = stdout.trim();
-        if (selectedPath) {
-          logger.info(`Folder browser selected directory: ${selectedPath}`);
-          return res.json({ success: true, folderPath: selectedPath });
+    // POST /api/browse-folder - Open Windows Folder Browser Dialog via FolderPicker VBScript
+    this.app.post('/api/browse-folder', async (_req: Request, res: Response) => {
+      try {
+        const folderPath = await FolderPicker.openDialog();
+        if (folderPath) {
+          return res.json({ success: true, folderPath });
         }
         return res.json({ success: false, cancelled: true });
-      });
+      } catch (err) {
+        res.status(500).json({ success: false, error: (err as Error).message });
+      }
     });
 
     // POST /api/trigger - Await scan cycle trigger

@@ -10,6 +10,7 @@ import { TemplateEngine } from '../utils/TemplateEngine';
 import { MediaProcessor } from './MediaProcessor';
 import { StorageManager } from './StorageManager';
 import { Notifier } from '../utils/Notifier';
+import { FlowDetector } from '../flow/FlowDetector';
 import logger from '../logger/Logger';
 
 export class VideoDownloader {
@@ -54,6 +55,12 @@ export class VideoDownloader {
     for (const item of items) {
       if (item.status !== 'completed' || !item.videoUrl) {
         logger.debug(`Skipping incomplete item ${item.id} (Status: ${item.status})`);
+        continue;
+      }
+
+      if (FlowDetector.isChatOrSampleItem(item)) {
+        logger.info(`Skipping redundant chat/sample video item ${item.id}`);
+        skipped++;
         continue;
       }
 
