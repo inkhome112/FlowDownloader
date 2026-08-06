@@ -51,6 +51,22 @@ npm run start
 - ⚙️ [Configuration Guide](docs/CONFIGURATION.md)
 - 🛠️ [Build & Executable Guide](docs/BUILD.md)
 - 🚀 [Future Extension Points](docs/EXTENSIONS.md)
+- 🐛 [Known Issues](docs/KNOWN_ISSUES.md)
+
+---
+
+## Web Dashboard
+
+Once running, the dashboard is available at `http://localhost:3000`.
+
+### Setting the Download Folder
+
+1. Open the dashboard at `http://localhost:3000`
+2. Find the **📥 Save Directory** row
+3. Type the **full absolute Windows path** into the input box — e.g. `D:\MyVideos`
+4. Click **Save Directory**
+
+> ⚠️ **Important**: You must use a full absolute path (e.g. `D:\MyVideos`). Typing a relative name like `downloads` will create a subfolder inside the FlowDownloader project directory instead. See [Known Issues](docs/KNOWN_ISSUES.md) for details.
 
 ---
 
