@@ -1,6 +1,6 @@
 {
   "flowUrl": "https://labs.google/fx/tools/flow",
-  "downloadFolder": "Downloads",
+  "downloadFolder": "D:\\Antigravity Project\\FlowDownloader\\Downloads",
   "pollIntervalMs": 15000,
   "browserStrategy": "auto",
   "chromeExecutablePath": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",

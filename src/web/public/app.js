@@ -16,10 +16,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const specificDateInput  = document.getElementById('specific-date-input');
   const applyDateFilterBtn = document.getElementById('apply-date-filter-btn');
 
-  const downloadFolderInput   = document.getElementById('download-folder-input');
-  const folderPickerFileInput = document.getElementById('folder-picker-file-input');
-  const browseFolderBtn       = document.getElementById('browse-folder-btn');
-  const saveFolderBtn         = document.getElementById('save-folder-btn');
+  const downloadFolderInput = document.getElementById('download-folder-input');
+  const saveFolderBtn       = document.getElementById('save-folder-btn');
 
   const enableArchivingChk   = document.getElementById('enable-archiving-chk');
   const maxStorageGbInput    = document.getElementById('max-storage-gb');
@@ -71,44 +69,18 @@ document.addEventListener('DOMContentLoaded', () => {
     } finally { applyDateFilterBtn.disabled = false; applyDateFilterBtn.textContent = 'Apply Filter'; }
   });
 
-  if (folderPickerFileInput) {
-    folderPickerFileInput.addEventListener('change', async (e) => {
-      const files = e.target.files;
-      if (files && files.length > 0) {
-        const firstFile = files[0];
-        let chosenPath = firstFile.path || '';
-        if (chosenPath) {
-          chosenPath = chosenPath.substring(0, Math.max(chosenPath.lastIndexOf('\\'), chosenPath.lastIndexOf('/')));
-        } else if (firstFile.webkitRelativePath) {
-          chosenPath = firstFile.webkitRelativePath.split('/')[0];
-        }
-        if (chosenPath) {
-          downloadFolderInput.value = chosenPath;
-          await postConfig({ downloadFolder: chosenPath });
-          showToast('Save directory updated ✓');
-        }
-      }
-    });
-  }
-
-  if (browseFolderBtn) {
-    browseFolderBtn.addEventListener('click', () => {
-      if (folderPickerFileInput) {
-        folderPickerFileInput.value = ''; // Reset selection
-        folderPickerFileInput.click();
-      } else {
-        showToast('Folder picker input missing.');
-      }
-    });
-  }
-
   saveFolderBtn.addEventListener('click', async () => {
     const newPath = downloadFolderInput.value.trim();
     if (!newPath) { showToast('Please enter a valid directory path.'); return; }
     saveFolderBtn.disabled = true; saveFolderBtn.textContent = 'Saving…';
     try {
-      await postConfig({ downloadFolder: newPath });
+      const res = await fetch('/api/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ downloadFolder: newPath }) }).then(r => r.json());
+      if (res && res.downloadFolder) {
+        downloadFolderInput.value = res.downloadFolder;
+      }
       showToast('Save directory updated ✓');
+    } catch (e) {
+      showToast('Failed to save directory.');
     } finally { saveFolderBtn.disabled = false; saveFolderBtn.textContent = 'Save Directory'; }
   });
 
@@ -136,11 +108,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   async function postConfig(payload) {
-    const res = await fetch('/api/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }).then(r => r.json());
-    if (res && res.downloadFolder) {
-      downloadFolderInput.value = res.downloadFolder;
-    }
-    return res;
+    return await fetch('/api/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }).then(r => r.json());
   }
 
   // ── Stats ─────────────────────────────────────────────────────────────────
